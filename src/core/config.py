@@ -77,6 +77,39 @@ MIN_FREE_GB = 20.0
 # it lives here rather than in the compositor.
 GREY_CARD_LEVEL = 0.18
 
+# --- MEZZANINE ---
+
+# The mezzanine keeps the source's own codec, so this maps what came in to the
+# encoder that writes it back out all-intra. A codec not listed here cannot be
+# reproduced, and saying so beats working from a mezzanine that is not really
+# the source.
+MEZZANINE_ENCODERS = {
+    "h264": "libx264",
+    "hevc": "libx265",
+}
+
+# Visually transparent. The mezzanine costs one re-encode generation, which is
+# the price of exact random access, so it should not also cost quality.
+MEZZANINE_CRF = 12
+MEZZANINE_PRESET = "veryfast"
+
+# An all-intra encode at this preset runs faster than real time, so ten times
+# the source duration is generous without leaving a hung ffmpeg to block the
+# app indefinitely.
+ENCODE_TIMEOUT_FACTOR = 10
+MINIMUM_ENCODE_TIMEOUT = 600.0
+
+# --- REVIEW PROXY ---
+
+# Small enough to seek instantly and to sit in a browser without ceremony;
+# large enough to judge whether a face is clear and where its box belongs.
+# minicut found 480 legible but soft on 1080p material.
+PROXY_WIDTH = 640
+PROXY_CRF = 23
+PROXY_PRESET = "veryfast"
+
+PROXY_SUFFIX = "_proxy.mp4"
+
 # --- AUDIO ---
 
 # Codecs an mp4 will carry as a stream copy. Anything else is encoded once at
