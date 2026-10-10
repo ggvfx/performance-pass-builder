@@ -9,10 +9,12 @@
 import { loadEnvironment } from "./environment.js";
 import { openPicker } from "./picker.js";
 import { state } from "./state.js";
+import { wireSteps } from "./steps.js";
 import { whenShown, wireTabs } from "./tabs.js";
 
 document.addEventListener("DOMContentLoaded", () => {
     wireTabs();
+    wireSteps();
 
     // The strip on the workflow tab is the answer to "can I start?", so it is
     // filled on load rather than when Setup is first opened.

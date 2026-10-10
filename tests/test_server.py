@@ -36,18 +36,49 @@ def test_page_has_both_tabs():
     assert 'data-tab="setup"' in page
 
 
+# The four steps, in order. Each has a panel of its own.
+STEPS = ["source", "depth", "faces", "composite"]
+
+
 def test_the_whole_workflow_is_on_the_page():
     """
     The shape of the job is visible before any of it works, so it can be
-    argued with. Each numbered step is a card with a heading.
+    argued with — and this is a compositing app, so the Composite step has to
+    be there from the start even with nothing yet to combine.
     """
     page = client.get("/").text
-    headings = re.findall(r"<h2>(\d) · ([^<]+)</h2>", page)
+    steps = re.findall(r'data-step="([^"]+)"', page)
 
-    print(f"workflow steps on the page: {headings}")
-    assert [number for number, _ in headings] == ["1", "2", "3", "4", "5"], (
-        "the five workflow steps should be numbered in order"
+    print(f"steps on the page: {steps}")
+    assert steps == STEPS, "the four steps should be present and in order"
+
+
+def test_every_step_has_a_panel_and_says_what_state_it_is_in():
+    """A step that shows nothing when clicked is worse than one that is absent."""
+    page = client.get("/").text
+
+    for step in STEPS:
+        assert f'id="step-{step}"' in page, f"no panel for {step}"
+
+    assert len(re.findall(r'class="step-state"', page)) == len(STEPS)
+
+
+def test_the_stack_is_numbered_from_the_bottom():
+    """
+    Layer 0 is the background. The list reads top of stack first, the way a
+    layer panel does, so the indices run downward — which is the thing a
+    reader has to get right and the thing a careless edit would reverse.
+    """
+    page = client.get("/").text
+    composite = page.split('id="step-composite"')[1]
+    indices = re.findall(r'class="layer-index">(\d+)<', composite)
+
+    print(f"stack listed top-down: {indices}")
+    assert indices, "the composite step should show a stack"
+    assert indices == sorted(indices, reverse=True), (
+        "listed top first, so the indices should descend"
     )
+    assert indices[-1] == "0", "the bottom layer is 0"
 
 
 # Controls on the Performance tab that are wired and so may be enabled.
@@ -57,6 +88,7 @@ def test_the_whole_workflow_is_on_the_page():
 LIVE_CONTROLS = {
     'id="source-path"',      # 1.7 — a typed path is as valid as a picked one
     'data-picker="source"',  # 1.7 — opens the path picker
+    "data-step=",            # the strip itself: every step is reachable
 }
 
 
@@ -68,7 +100,7 @@ def test_only_wired_performance_controls_are_enabled():
     page = client.get("/").text
     performance = page.split('id="performance"')[1].split('id="setup"')[0]
 
-    controls = re.findall(r"<(?:button|input)\b[^>]*>", performance)
+    controls = re.findall(r"<(?:button|input|select)\b[^>]*>", performance)
     assert controls, "the performance tab should lay its controls out"
 
     for control in controls:

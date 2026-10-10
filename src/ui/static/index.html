@@ -18,20 +18,17 @@
     </nav>
 </header>
 
-<!-- The page is a workflow: every section sits in the order it is used, so the
-     only direction anyone needs to move is down.
-
-     Every control is disabled today. That is deliberate rather than
-     unfinished — the shape of the job is easier to argue with when you can
-     see it, and a dimmed control admits it does nothing, where one that looks
-     ready does not. -->
+<!-- Every control is disabled today except the source path and its Browse
+     button. That is deliberate rather than unfinished — the shape of the job
+     is easier to argue with when it can be seen, and a dimmed control admits
+     it does nothing where one that looks ready does not. -->
 <main>
 
     <!-- ===== PERFORMANCE PASS TAB ===== -->
     <section id="performance" class="tab-panel active">
 
-        <!-- Filled by environment.js at task 1.6. One line, and it links to
-             Setup rather than putting a panel nobody reads above the work. -->
+        <!-- Filled by environment.js. One line, linking to Setup, rather than
+             a panel nobody reads sitting above the work. -->
         <p id="performance-health" class="health" hidden></p>
 
         <section class="intro">
@@ -40,8 +37,8 @@
                 mesh over each face you choose, and the original audio.
             </p>
             <p class="hint">
-                Hand the result to a video generation model as reference video, to replace
-                the actor and the background while keeping the performance.
+                Run only the passes you want, then combine them. Outputting one pass on its
+                own is the same thing with one layer switched on.
             </p>
         </section>
 
@@ -55,106 +52,243 @@
                     carries the expression.</li>
                 <li><strong>One window for the whole clip.</strong> Per-frame depth ranges
                     would make the depth pump.</li>
+                <li><strong>Two layers, stacked in a fixed order.</strong> No opacity, blend
+                    modes or masks yet.</li>
             </ul>
         </section>
 
+        <!-- ===== STEP STRIP ===== -->
+
+        <!-- Every step is reachable from the start. A step that needs
+             something earlier says so in place rather than being locked:
+             someone opening this for the first time should be able to see the
+             shape of the job. -->
+        <nav class="steps">
+            <button class="step active" data-step="source">
+                <span class="step-name">1 · Source</span>
+                <span class="step-state">Not prepared</span>
+            </button>
+            <button class="step" data-step="depth">
+                <span class="step-name">2 · Depth</span>
+                <span class="step-state">Not run</span>
+            </button>
+            <button class="step" data-step="faces">
+                <span class="step-name">3 · Faces</span>
+                <span class="step-state">Not run</span>
+            </button>
+            <button class="step" data-step="composite">
+                <span class="step-name">4 · Composite</span>
+                <span class="step-state">Nothing to combine</span>
+            </button>
+        </nav>
+
         <!-- ===== 1 · SOURCE ===== -->
-        <section class="card">
-            <div class="card-header">
-                <h2>1 · Source</h2>
-            </div>
-            <p class="hint">
-                Typed or chosen. Nothing is uploaded until you ask for hosted depth.
-            </p>
-            <div class="path-row">
-                <input type="text" id="source-path" placeholder="Path to the footage">
-                <button class="secondary" data-picker="source">Browse&hellip;</button>
-            </div>
-            <div class="action-row">
-                <button id="inspect-button" disabled>Inspect</button>
-                <span id="inspect-status" class="status">Arrives at task 2.1.</span>
-            </div>
+        <section id="step-source" class="step-panel active">
+            <section class="card">
+                <div class="card-header"><h2>The footage</h2></div>
+                <p class="hint">
+                    Typed or chosen. Nothing is uploaded until you ask for hosted depth.
+                </p>
+                <div class="path-row">
+                    <input type="text" id="source-path" placeholder="Path to the footage">
+                    <button class="secondary" data-picker="source">Browse&hellip;</button>
+                </div>
+                <div class="action-row">
+                    <button id="inspect-button" disabled>Inspect</button>
+                    <span id="inspect-status" class="status">Arrives at task 2.1.</span>
+                </div>
+                <dl class="facts" id="source-facts">
+                    <dt>Frame rate</dt><dd>&mdash;</dd>
+                    <dt>Frames</dt><dd>&mdash;</dd>
+                    <dt>Resolution</dt><dd>&mdash;</dd>
+                    <dt>Audio</dt><dd>&mdash;</dd>
+                </dl>
+            </section>
+
+            <section class="card">
+                <div class="card-header"><h2>Prepare</h2></div>
+                <p class="hint">
+                    Builds the all-intra copy every later seek lands on, and the small
+                    numbered proxy you select faces against. Done once, and every pass
+                    reads it.
+                </p>
+                <div class="action-row">
+                    <button id="prepare-button" disabled>Prepare</button>
+                    <span id="prepare-status" class="status">Arrives at task 5.2.</span>
+                </div>
+                <div id="prepare-progress" class="progress" hidden><div class="progress-bar"></div></div>
+            </section>
         </section>
 
-        <!-- ===== 2 · PREPARE ===== -->
-        <section class="card" id="prepare-card">
-            <div class="card-header">
-                <h2>2 · Prepare</h2>
-            </div>
-            <p class="hint">
-                Reads the source, builds the all-intra copy every seek lands on, makes the
-                numbered proxy, and fetches depth.
-            </p>
-            <dl class="facts" id="source-facts">
-                <dt>Frame rate</dt><dd>—</dd>
-                <dt>Frames</dt><dd>—</dd>
-                <dt>Resolution</dt><dd>—</dd>
-                <dt>Audio</dt><dd>—</dd>
-            </dl>
-            <div class="action-row">
-                <button id="prepare-button" disabled>Prepare</button>
-                <span id="prepare-status" class="status">Arrives at task 5.3.</span>
-            </div>
-            <div id="progress" class="progress" hidden><div class="progress-bar"></div></div>
+        <!-- ===== 2 · DEPTH ===== -->
+        <section id="step-depth" class="step-panel">
+            <section class="card">
+                <div class="card-header"><h2>Generate</h2></div>
+                <p class="hint">
+                    Paid for once per source and per setting. Everything below the result
+                    is free to change afterwards.
+                </p>
+                <div class="setting-row">
+                    <label for="depth-model">Model</label>
+                    <select id="depth-model" disabled>
+                        <option>VDA-Small &mdash; Apache-2.0</option>
+                        <option>VDA-Base &mdash; non-commercial</option>
+                        <option>VDA-Large &mdash; non-commercial</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label for="depth-resolution">Resolution</label>
+                    <select id="depth-resolution" disabled>
+                        <option>Match the source (max 1080p)</option>
+                        <option>720p</option>
+                        <option>480p</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label for="depth-raw">Raw depth</label>
+                    <input type="checkbox" id="depth-raw" disabled>
+                    <span class="hint">
+                        Needed to adjust the range afterwards. Several GB to download.
+                    </span>
+                </div>
+                <div class="action-row">
+                    <button id="depth-process" disabled>Process depth</button>
+                    <span id="depth-status" class="status">Arrives at Phase 4.</span>
+                </div>
+                <div id="depth-progress" class="progress" hidden><div class="progress-bar"></div></div>
+            </section>
+
+            <section class="card" id="depth-result-card">
+                <div class="card-header"><h2>Result</h2></div>
+                <div class="placeholder">The depth pass plays here once it has run.</div>
+                <dl class="facts" id="depth-facts">
+                    <dt>Model</dt><dd>&mdash;</dd>
+                    <dt>Stored precision</dt><dd>&mdash;</dd>
+                </dl>
+            </section>
+
+            <section class="card">
+                <div class="card-header"><h2>Adjust</h2></div>
+                <p class="hint">
+                    Position the 0&ndash;1 range over the part of the shot that matters, so the
+                    whole output range is spent there rather than from the lens to the
+                    horizon. Local and instant &mdash; never another call.
+                </p>
+                <div class="setting-row">
+                    <label for="depth-near">Near</label>
+                    <input type="range" id="depth-near" min="0" max="1" step="0.001" value="0" disabled>
+                </div>
+                <div class="setting-row">
+                    <label for="depth-far">Far</label>
+                    <input type="range" id="depth-far" min="0" max="1" step="0.001" value="1" disabled>
+                </div>
+                <div class="setting-row">
+                    <label for="depth-colormap">Colour map</label>
+                    <select id="depth-colormap" disabled>
+                        <option>Grayscale</option>
+                        <option>Turbo</option>
+                        <option>Inferno</option>
+                        <option>Magma</option>
+                        <option>Viridis</option>
+                    </select>
+                </div>
+                <p class="hint">Arrives at task 5.3. Combining a second depth pass lands here too.</p>
+            </section>
         </section>
 
         <!-- ===== 3 · FACES ===== -->
-        <section class="card" id="faces-card">
-            <div class="card-header">
-                <h2>3 · Faces</h2>
-            </div>
-            <p class="hint">
-                Scrub to a frame where a face is clear and draw a box round it. Add another
-                box wherever a track breaks — past a turn away from camera, or a wipe.
-            </p>
-            <ul class="faces" id="face-list">
-                <li class="face">
-                    <span class="face-label">No faces yet</span>
-                    <span class="face-seeds">The player and selection arrive at task 5.1.</span>
-                </li>
-            </ul>
+        <section id="step-faces" class="step-panel">
+            <section class="card">
+                <div class="card-header"><h2>Select</h2></div>
+                <p class="hint">
+                    Scrub to a frame where a face is clear and draw a box round it. Add
+                    another box wherever a track breaks &mdash; past a turn away from camera,
+                    or a wipe.
+                </p>
+                <div class="placeholder">The proxy plays here, with the boxes drawn over it.</div>
+                <div class="action-row">
+                    <button id="face-add" disabled>Add a face</button>
+                    <button id="face-seed" class="secondary" disabled>Add a seed here</button>
+                    <span class="status">Arrives at task 5.4.</span>
+                </div>
+            </section>
+
+            <section class="card">
+                <div class="card-header"><h2>Faces</h2></div>
+                <ul class="faces" id="face-list">
+                    <li class="face">
+                        <span class="face-label">No faces yet</span>
+                        <span class="face-seeds">Each face keeps its own list of seeds.</span>
+                    </li>
+                </ul>
+            </section>
+
+            <section class="card">
+                <div class="card-header"><h2>Track</h2></div>
+                <p class="hint">
+                    One tracker per face, run in segments between that face's seeds. Every
+                    frame records which seed it came from, so a gap is visible rather than
+                    guessed at.
+                </p>
+                <div class="action-row">
+                    <button id="faces-process" disabled>Track faces</button>
+                    <span id="faces-status" class="status">Arrives at Phase 3.</span>
+                </div>
+                <div id="faces-progress" class="progress" hidden><div class="progress-bar"></div></div>
+            </section>
         </section>
 
-        <!-- ===== 4 · DEPTH ===== -->
-        <section class="card" id="depth-card">
-            <div class="card-header">
-                <h2>4 · Depth</h2>
-            </div>
-            <p class="hint">
-                Position the 0&ndash;1 range over the part of the shot that matters, so the
-                whole output range is spent there rather than on everything from the lens to
-                the horizon. Local and instant: changing it never calls the model again.
-            </p>
-            <dl class="facts" id="depth-facts">
-                <dt>Model</dt><dd>—</dd>
-                <dt>Stored precision</dt><dd>—</dd>
-                <dt>Window</dt><dd>—</dd>
-                <dt>Colour map</dt><dd>—</dd>
-            </dl>
-            <p class="hint">The window controls arrive at task 5.2.</p>
-        </section>
+        <!-- ===== 4 · COMPOSITE ===== -->
+        <section id="step-composite" class="step-panel">
+            <section class="card">
+                <div class="card-header"><h2>The stack</h2></div>
+                <p class="hint">
+                    Layer 0 is the bottom. Switch off anything you do not want &mdash;
+                    outputting a single pass is this with one layer on.
+                </p>
 
-        <!-- ===== 5 · RUN ===== -->
-        <section class="card" id="run-card">
-            <div class="card-header">
-                <h2>5 · Run</h2>
-            </div>
-            <p class="hint">
-                Tracks each face on this machine, draws its mesh over the depth, and copies
-                the source audio in untouched. Every pass is checked against the source
-                before it is handed over.
-            </p>
-            <div class="action-row">
-                <button id="run-button" disabled>Run</button>
-                <span id="run-status" class="status">Arrives at task 5.3.</span>
-            </div>
+                <!-- Listed top of stack first, the way a layer panel reads,
+                     with the index saying which is actually underneath. -->
+                <ul class="layers" id="layer-list">
+                    <li class="layer">
+                        <input type="checkbox" id="layer-faces" checked disabled>
+                        <span class="layer-index">1</span>
+                        <span class="layer-name">Face mesh</span>
+                        <span class="layer-state">Not run</span>
+                    </li>
+                    <li class="layer">
+                        <input type="checkbox" id="layer-depth" checked disabled>
+                        <span class="layer-index">0</span>
+                        <span class="layer-name">Depth</span>
+                        <span class="layer-state">Not run</span>
+                    </li>
+                </ul>
+                <p class="hint">
+                    Segmentation and other control passes arrive here as more layers,
+                    without changing anything above.
+                </p>
+            </section>
 
-            <!-- Housekeeping rather than part of the job, so it sits below the
-                 rule. It matters here: the depth in that folder was paid for. -->
-            <div id="work-row" class="work-row" hidden>
-                <span id="work-detail" class="status"></span>
-                <button id="work-clear" class="secondary" disabled>Clear</button>
-            </div>
+            <section class="card">
+                <div class="card-header"><h2>Output</h2></div>
+                <p class="hint">
+                    Written at the source's exact length with its audio copied in, and
+                    checked against the source before it is handed over.
+                </p>
+                <div class="action-row">
+                    <button id="output-button" disabled>Output</button>
+                    <span id="output-status" class="status">Arrives at task 5.6.</span>
+                </div>
+                <div id="output-progress" class="progress" hidden><div class="progress-bar"></div></div>
+
+                <!-- Housekeeping rather than part of the job, so it sits below
+                     the rule. It matters here: the depth in that folder was
+                     paid for. -->
+                <div id="work-row" class="work-row" hidden>
+                    <span id="work-detail" class="status"></span>
+                    <button id="work-clear" class="secondary" disabled>Clear</button>
+                </div>
+            </section>
         </section>
 
     </section>
