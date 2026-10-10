@@ -12,6 +12,21 @@ again.
 
 ---
 
+## Phase 2 — 2.7 to 2.9
+
+### 2.7 — Validator
+
+- [ ] **Frame hashes are not part of `validate()`.** They cost a full decode
+      of two files and only answer what metadata cannot — a hosted model
+      returning the right length and the wrong picture. `compare_frames` is a
+      separate call the depth stage makes on arrival.
+- [ ] **A duration failure is only reported when the count and rate both
+      passed.** Otherwise it is a second symptom of a fault already named,
+      and three failures for one problem is how a report stops being read.
+- [ ] **The validator asks what the encoder *claimed* it did with the
+      audio**, rather than inferring from the source. That is what lets an
+      absent stream be correct for `OMITTED` and a failure for `COPIED`.
+
 ## Phase 2 — before 2.6
 
 Agreed in discussion rather than taken unattended, recorded here because

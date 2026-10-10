@@ -165,7 +165,7 @@ length with the same audio, proven before any model exists.
       Includes the two sources that are not passes: the **plate** and a **flat
       grey card** at `GREY_CARD_LEVEL`. They are layers like any other, so the
       compositor never learns which were generated and which were given
-- [ ] **2.7** Validator *(port — `splitter/validator.py`, ~35%)* — frame count, rate, duration, audio.
+- [x] **2.7** Validator *(port — `splitter/validator.py`, ~35%)* — frame count, rate, duration, audio.
       Only the `framemd5` frame-hash machinery comes across; every shot-list
       check stays behind. Blocks
 - [ ] **2.8** Sidecar *(port — `core/sidecar.py`)*
