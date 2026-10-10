@@ -117,6 +117,13 @@ PROXY_SUFFIX = "_proxy.mp4"
 # camera is the usual case. CLAUDE.md non-negotiable 3.
 MP4_AUDIO_CODECS = frozenset({"aac", "mp3", "ac3", "eac3", "alac", "opus"})
 
+# Where the source's codec will not fit the container, it is encoded ONCE, at
+# a bitrate high enough that the generation model is driven by what was
+# recorded rather than by what survived a second pass. The sidecar records
+# that this happened.
+FALLBACK_AUDIO_CODEC = "aac"
+FALLBACK_AUDIO_BITRATE = "320k"
+
 # --- DISK ESTIMATION ---
 
 # The reference figure above is quoted for 1080p at 24 fps, so both resolution

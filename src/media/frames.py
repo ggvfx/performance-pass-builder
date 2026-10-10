@@ -215,27 +215,54 @@ class FrameWriter:
 
     # --- LIFECYCLE ---
 
+    def frame_input_arguments(self) -> list[str]:
+        """
+        The arguments describing the frames arriving on stdin.
+
+        Notes:
+            The rate goes in as an exact rational — ffmpeg takes "24000/1001"
+            here — because a rounded 23.976 would drift against the source.
+        """
+        return [
+            "-f", "rawvideo",
+            "-pix_fmt", PIXEL_FORMAT,
+            "-s", f"{self.width}x{self.height}",
+            "-r", f"{self.rate.numerator}/{self.rate.denominator}",
+            "-i", "-",
+        ]
+
+    def video_output_arguments(self) -> list[str]:
+        """How the picture is encoded."""
+        return [
+            "-c:v", self.codec,
+            "-preset", self.preset,
+            "-crf", str(self.crf),
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+        ]
+
+    def arguments(self) -> list[str]:
+        """
+        The whole command, as one list.
+
+        Notes:
+            Assembled in one overridable place so a writer that also muxes
+            audio can add an input and a mapping without reimplementing the
+            pipe handling below it — see `media/encode.py`.
+        """
+        return [
+            "-v", "error",
+            *self.frame_input_arguments(),
+            *self.video_output_arguments(),
+            "-y",
+            str(self.path),
+        ]
+
     def __enter__(self) -> "FrameWriter":
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
         self._process = self.toolchain.popen_ffmpeg(
-            [
-                "-v", "error",
-                "-f", "rawvideo",
-                "-pix_fmt", PIXEL_FORMAT,
-                "-s", f"{self.width}x{self.height}",
-                # The exact rational, never a decimal. ffmpeg takes "24000/1001"
-                # here, and a rounded 23.976 would drift against the source.
-                "-r", f"{self.rate.numerator}/{self.rate.denominator}",
-                "-i", "-",
-                "-c:v", self.codec,
-                "-preset", self.preset,
-                "-crf", str(self.crf),
-                "-pix_fmt", "yuv420p",
-                "-movflags", "+faststart",
-                "-y",
-                str(self.path),
-            ],
+            self.arguments(),
             stdin=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )

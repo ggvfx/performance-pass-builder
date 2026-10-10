@@ -14,6 +14,28 @@ again.
 
 ## Phase 2
 
+### 2.5 — Audio
+
+- [ ] **Audio is muxed in the same ffmpeg pass as the picture**, as a second
+      input, rather than written video-first and muxed after. One pass instead
+      of writing the video twice. Cost: `-map 0:v:0` must be explicit, because
+      with two inputs ffmpeg could otherwise pick the *source's* picture and
+      silently deliver the original footage. There is a test for exactly that.
+- [ ] **`-shortest` is deliberately not used.** It would trim the picture to
+      the audio, and a pass that is not exactly the source's length is the one
+      thing this project will not deliver. If the two disagree, the validator
+      at 2.7 is where it surfaces — loudly.
+- [ ] **`AudioHandling` is recorded, not inferred**: copied, encoded, omitted,
+      or none. Three of those produce files that look identical, so the
+      sidecar is the only place the difference survives.
+- [ ] **The fallback is aac at 320k**, in config. High enough that the
+      generation is driven by what was recorded rather than by what survived a
+      second pass. A guess at a sensible number — change it if you disagree.
+- [ ] **`FrameWriter.arguments()` was made overridable** so `OutputWriter`
+      could add an audio input without reimplementing the pipe handling.
+      Alternative was a separate class duplicating about sixty lines of
+      process management.
+
 ### 2.4 — Frame streaming
 
 - [ ] **Pipes are opened in `ffmpeg_tools.py`, not in `frames.py`.** CLAUDE.md

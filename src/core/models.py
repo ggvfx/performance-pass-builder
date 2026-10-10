@@ -105,6 +105,21 @@ class AudioInfo(BaseModel):
     can_stream_copy_to_mp4: bool
 
 
+class AudioHandling(str, Enum):
+    """
+    What happened to the source's audio on the way into a deliverable.
+
+    Recorded rather than inferred, because three of these look identical in
+    the finished file — an output with no audio could be a mute source, a
+    deliberate omission, or a bug — and the sidecar is where that is settled.
+    """
+
+    COPIED = "copied"      # Stream-copied, untouched. The normal path
+    ENCODED = "encoded"    # The container would not hold it; encoded once, high bitrate
+    OMITTED = "omitted"    # The artist asked for it to be left out
+    NONE = "none"          # The source had no audio to carry
+
+
 class SourceInfo(BaseModel):
     """What ffprobe reported about the source file."""
 
