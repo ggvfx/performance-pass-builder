@@ -52,8 +52,8 @@
                     carries the expression.</li>
                 <li><strong>One window for the whole clip.</strong> Per-frame depth ranges
                     would make the depth pump.</li>
-                <li><strong>Two layers, stacked in a fixed order.</strong> No opacity, blend
-                    modes or masks yet.</li>
+                <li><strong>Layers stack and reorder, and nothing else.</strong> No
+                    opacity, blend modes or masks yet.</li>
             </ul>
         </section>
 
@@ -243,38 +243,84 @@
             <section class="card">
                 <div class="card-header"><h2>The stack</h2></div>
                 <p class="hint">
-                    Layer 0 is the bottom. Switch off anything you do not want &mdash;
-                    outputting a single pass is this with one layer on.
+                    Layer 0 is the bottom. The number is where a layer sits; the switch is
+                    whether it takes part. Reorder them, switch off anything you do not want
+                    &mdash; outputting a single pass is this with one layer on.
                 </p>
 
                 <!-- Listed top of stack first, the way a layer panel reads,
-                     with the index saying which is actually underneath. -->
+                     with the index saying which is actually underneath. The
+                     plate and the grey card are sources like any other: the
+                     compositor never learns which were generated. -->
                 <ul class="layers" id="layer-list">
                     <li class="layer">
                         <input type="checkbox" id="layer-faces" checked disabled>
-                        <span class="layer-index">1</span>
+                        <span class="layer-index">3</span>
                         <span class="layer-name">Face mesh</span>
+                        <span class="layer-note">has alpha</span>
                         <span class="layer-state">Not run</span>
+                        <span class="layer-move">
+                            <button class="secondary" data-move="up" disabled>&uarr;</button>
+                            <button class="secondary" data-move="down" disabled>&darr;</button>
+                        </span>
                     </li>
                     <li class="layer">
                         <input type="checkbox" id="layer-depth" checked disabled>
-                        <span class="layer-index">0</span>
+                        <span class="layer-index">2</span>
                         <span class="layer-name">Depth</span>
+                        <span class="layer-note"></span>
                         <span class="layer-state">Not run</span>
+                        <span class="layer-move">
+                            <button class="secondary" data-move="up" disabled>&uarr;</button>
+                            <button class="secondary" data-move="down" disabled>&darr;</button>
+                        </span>
+                    </li>
+                    <li class="layer">
+                        <input type="checkbox" id="layer-plate" disabled>
+                        <span class="layer-index">1</span>
+                        <span class="layer-name">Plate</span>
+                        <span class="layer-note">the original footage</span>
+                        <span class="layer-state">Ready</span>
+                        <span class="layer-move">
+                            <button class="secondary" data-move="up" disabled>&uarr;</button>
+                            <button class="secondary" data-move="down" disabled>&darr;</button>
+                        </span>
+                    </li>
+                    <li class="layer">
+                        <input type="checkbox" id="layer-grey" disabled>
+                        <span class="layer-index">0</span>
+                        <span class="layer-name">Grey card</span>
+                        <span class="layer-note">18%</span>
+                        <span class="layer-state">Ready</span>
+                        <span class="layer-move">
+                            <button class="secondary" data-move="up" disabled>&uarr;</button>
+                            <button class="secondary" data-move="down" disabled>&darr;</button>
+                        </span>
                     </li>
                 </ul>
                 <p class="hint">
-                    Segmentation and other control passes arrive here as more layers,
-                    without changing anything above.
+                    The mesh is the only layer with alpha, so what is under it shows
+                    through: over the plate is how you check a track, over grey is how you
+                    look at the mesh alone. Segmentation and other control passes arrive
+                    here as more layers, without changing anything above.
                 </p>
             </section>
 
             <section class="card">
                 <div class="card-header"><h2>Output</h2></div>
                 <p class="hint">
-                    Written at the source's exact length with its audio copied in, and
-                    checked against the source before it is handed over.
+                    Written at the source's exact length, and checked against the source
+                    before it is handed over.
                 </p>
+                <div class="setting-row">
+                    <label for="output-audio">Audio</label>
+                    <input type="checkbox" id="output-audio" checked disabled>
+                    <span class="hint">
+                        Carried through untouched when it is carried at all. Leave it out for
+                        a model that ignores it, or for client audio that should not travel
+                        with the file.
+                    </span>
+                </div>
                 <div class="action-row">
                     <button id="output-button" disabled>Output</button>
                     <span id="output-status" class="status">Arrives at task 5.6.</span>

@@ -136,13 +136,17 @@ length with the same audio, proven before any model exists.
       through another, frame count exact. **New work**: minicut stream-copies
       shots and never pipes frames in either direction
 - [ ] **2.5** Audio carried through by stream copy, with the fallback for a
-      codec the container cannot hold
-- [ ] **2.6** Compositor — stack N layers in order, index 0 at the bottom,
-      "over", skipping any that are switched off; write the result through the
+      codec the container cannot hold — and the option to leave it out, which
+      the validator checks is actually absent rather than merely unrequested
+- [ ] **2.6** Compositor — stack N layers in the order given, index 0 at the
+      bottom, "over", skipping any switched off; write the result through the
       frame pipe. **Here rather than in Phase 5 because it is frame plumbing**:
       it can be proven against generated clips standing in as layers, before
       any pass exists to produce a real one. v1 has no opacity, no blend modes
-      and no masks — a layer is a picture and a switch
+      and no masks — a layer is a picture and a switch.
+      Includes the two sources that are not passes: the **plate** and a **flat
+      grey card** at `GREY_CARD_LEVEL`. They are layers like any other, so the
+      compositor never learns which were generated and which were given
 - [ ] **2.7** Validator *(port — `splitter/validator.py`, ~35%)* — frame count, rate, duration, audio.
       Only the `framemd5` frame-hash machinery comes across; every shot-list
       check stays behind. Blocks
@@ -180,8 +184,8 @@ Local and free, so this is where the iterating happens.
 - [ ] **3.9** `landmarks.json` and the per-face tracking report, including
       where each face's seeds are and which frames came from which
 
-**Decision point at 3.8:** composite the mesh layer over the source itself
-and judge on
+**Decision point at 3.8:** composite the mesh layer over the plate — which
+the stack already does, since the plate is a layer source — and judge on
 real footage — two people, a face crossing another, a turn to profile, a wipe —
 before depth is involved. That is also where re-seeding either proves itself or
 needs rethinking.
@@ -214,6 +218,9 @@ needs rethinking.
       conversion, the same window and colour map; only the call is skipped.
       The page has to say that a colormapped import cannot be windowed, that
       there is no model range to align against, and what precision it found.
+      **Exactly the source's length or refused** — no trimming, no padding:
+      a silent one-frame correction produces a pass that drifts and a reason
+      nobody can find. Offering to trim is a future convenience.
       **Also makes a missing `FAL_KEY` degraded rather than blocking**, since
       a machine with no key can now produce a pass
 - [ ] **4.8** `.npz` → stored scalar field: extract the `depths` member to a
@@ -247,8 +254,10 @@ opening the app for the first time should be able to see the shape of the job.
       seed at the frame on screen, step between faces, per-face visibility.
       The timeline shows each face's coverage, its seeds and its gaps, so where
       a re-seed is needed is visible rather than guessed
-- [ ] **5.5** Composite step: the stack in order with a switch per layer, and
-      the output button. Outputting one pass is this with one layer on
+- [ ] **5.5** Composite step: the stack, **reorderable**, with a switch per
+      layer and the plate and grey card listed beside the passes. The output
+      button, and the choice of whether to carry the audio. Outputting one
+      pass is this with one layer on
 - [ ] **5.6** Routes behind all of it *(port — `routes/splitter.py` shape)*:
       prepare, run one pass, composite, output
 - [ ] **5.7** The warning before footage is uploaded, and the raw-depth
@@ -288,6 +297,8 @@ when reached, and not before Phase 5 is finished.
 - A soft knee on the window, as an alternative to the hard clip
 - The compositor gains whatever this needs and no more. Opacity and blend
   modes are likely; masks wait for something to generate them
+- Trimming or padding a supplied depth pass that is not quite the source's
+  length, which 4.7 refuses outright
 
 ---
 

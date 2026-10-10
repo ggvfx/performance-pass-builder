@@ -69,6 +69,14 @@ DISK_COPIES_PER_JOB = 3
 # short.
 MIN_FREE_GB = 20.0
 
+# --- COMPOSITING ---
+
+# The flat card's level, as a fraction of full scale. 18% is the photographic
+# mid-grey: it is what a grey card is, and the level a region "left neutral"
+# in a control pass is expected to sit at. A user may want another value, so
+# it lives here rather than in the compositor.
+GREY_CARD_LEVEL = 0.18
+
 # --- SOURCE FILES ---
 
 # What the path picker offers. Lowercase; compared against a lowercased suffix.

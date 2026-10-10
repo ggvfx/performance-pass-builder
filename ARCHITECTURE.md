@@ -166,6 +166,13 @@ Three things about it are different, and the page has to say so:
 - **Precision is whatever the file has.** An 8-bit import windows badly, and
   the panel should say so before the slider disappoints someone.
 
+**It has to be exactly the source's length, or it is refused.** Non-negotiable
+2 applies to depth that arrives as much as to depth that is generated, and an
+import is the likeliest thing to be a frame out. Offering to trim or pad is a
+reasonable future convenience and is deliberately not built now: a silent
+one-frame correction is the kind of help that produces a pass which drifts and
+a reason nobody can find.
+
 It also changes a dependency: a missing `FAL_KEY` stops being blocking the
 day this exists, because a machine with no key can still build a pass from
 supplied depth. `check_fal_key` says it becomes degraded once there is a
@@ -297,10 +304,39 @@ on purpose. Re-seeding is also the manual answer to it.
 An ordered list of layers, index 0 at the bottom, each composited over the one
 below.
 
-In v1 a layer is **a pass and an on/off switch**, and the operator is always
+In v1 a layer is **a source and an on/off switch**, and the operator is always
 "over". That is deliberately almost nothing: the value is the shape, not the
 features. Opacity, blend modes, per-layer masks and transforms all fit this
 model without changing it, and none of them has anything to drive it yet.
+
+**The stack is editable.** Layers reorder as well as switch off, and that is
+the point rather than a convenience: a segmented depth region over the plate
+is a different picture from the plate over that region, and neither is more
+correct. The order is the artist's, not the app's.
+
+**The plate and a flat grey card are sources like any other**, listed beside
+depth and the face mesh:
+
+| Source | Opaque | What it is for |
+|---|---|---|
+| `plate` | yes | The original footage, unaltered |
+| `grey` | yes | A flat card, 18% by default — `GREY_CARD_LEVEL` |
+| `black` | yes | Nothing under anything |
+| `depth` | yes | The depth pass, windowed and coloured |
+| `face_mesh` | **no** | The mesh, with alpha |
+
+They are one list on purpose. The compositor should not know which layers were
+generated and which were given, and the day a segmented region sits over the
+plate, the plate has to be an ordinary layer rather than a special case
+underneath everything.
+
+**The mesh is the only layer with alpha**, so what is under it shows through —
+which makes two useful things fall out of the same mechanism rather than
+needing modes of their own:
+
+- **mesh over the plate** is how a track is checked, which is exactly what the
+  Phase 3 decision point asks for
+- **mesh over grey** is how the mesh is looked at on its own
 
 **Outputting one pass is this with one layer enabled.** There is no separate
 export path, which is the main reason the stack is worth having in v1 rather
@@ -317,7 +353,7 @@ function signature.
 ### 7. Output — `src/media/encode.py`
 
 - Frames go into ffmpeg through a pipe and come out as h264, with the source's
-  audio stream copied in
+  audio stream copied in **unless the artist asked for it to be left out**
 - Writes whatever the stack was asked for: the composite, or any single pass
 - **New work with no counterpart in minicut**, which stream-copies shots out
   of a mezzanine and never pipes RGB in either direction
@@ -327,8 +363,10 @@ function signature.
 *The `framemd5` machinery ported from minicut's `splitter/validator.py`, ~35%.*
 
 - Frame count, frame rate and duration of every output match the source
-- Audio present when the source had audio, and copied rather than re-encoded
-  unless the probe said it could not be
+- Audio present when the source had it and it was asked for, and copied rather
+  than re-encoded unless the probe said it could not be. **And absent when it
+  was asked to be left out** — checked rather than assumed, because for the
+  privacy case "we did not add it" and "it is not there" are different claims
 - Frame hashes are how depth is proven to have come back frame for frame
 - Any failure blocks and is shown. Never warn-and-continue
 

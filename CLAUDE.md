@@ -75,11 +75,18 @@ Settled decisions. Do not revisit them without asking.
    includes the depth that comes back from a hosted model: it is checked on
    arrival, never trusted.
 
-3. **The source audio is carried through untouched.** Stream-copied into the
-   pass, not decoded and re-encoded, so lip sync in the generation is driven by
-   exactly what was recorded. Where the source's audio codec cannot live in the
-   pass container, it is encoded once at a high bitrate and the sidecar says
-   so. No separation, no pitch shifting — see Deferred.
+3. **When audio is carried, it is carried untouched.** Stream-copied into the
+   output, not decoded and re-encoded, so lip sync in the generation is driven
+   by exactly what was recorded. Where the source's codec cannot live in the
+   container, it is encoded once at a high bitrate and the sidecar says so. No
+   separation, no pitch shifting — see Deferred.
+
+   **Whether to carry it is the artist's choice**, defaulting to yes. There are
+   real reasons to leave it out: a pass going to a model that ignores it, or
+   client audio that should not travel with a file. Discarding is **checked**
+   rather than merely skipped — the validator asserts the output has no audio
+   stream, because for the privacy case "we did not add it" and "it is not
+   there" are different claims.
 
 4. **Hosted is the product. Local is the option.** This is handed to artists
    on Windows and macOS whose machines are nothing like the one it is written
@@ -134,11 +141,24 @@ Settled decisions. Do not revisit them without asking.
     layers and knows nothing about what made any of them, and no pass knows
     what consumes it. `composite/` may not import `performance/`.
 
-    In v1 a layer is a pass and an on/off switch, composited "over", index 0
+    In v1 a layer is a source and an on/off switch, composited "over", index 0
     at the bottom. Opacity, blend modes and masks fit the same model later and
     are not built now. **Outputting a single pass is the stack with one layer
     enabled** — there is no second export path, which is the main reason the
     stack earns its place in v1.
+
+    **The stack is editable: layers reorder as well as switch off.** That is
+    the point rather than a convenience — a segmented depth region over the
+    plate is a different picture from the plate over that region, and neither
+    is more correct, so the order cannot be something the app decides.
+
+    **The plate and a flat grey card are layer sources like any other.** The
+    compositor should not know which layers were generated and which were
+    given, and the day a segmented region sits over the plate, the plate has
+    to be an ordinary layer rather than a special case underneath everything.
+    The mesh is the one layer with alpha, which is what makes "mesh over the
+    plate" the way to check a track and "mesh over grey" the way to look at it
+    alone.
 
     An earlier draft called this the plate seam and implemented it as one
     function signature. The stack is the same principle done properly, and it
@@ -190,10 +210,11 @@ they turned on.
 
 ### Finish
 
-10. **Composite** — the layers that are switched on, in order, index 0 at the
-    bottom.
+10. **Composite** — the layers that are switched on, in the order the artist
+    put them, index 0 at the bottom. The plate and a flat grey card are
+    available as sources alongside the passes.
 11. **Output** — the composite, or any single pass, with the source audio
-    copied in.
+    copied in unless it was asked to be left out.
 12. **Validate** — frame count, frame rate, duration, audio present. Blocks.
 13. **Sidecar** — what was produced, from what, by which versions.
 
@@ -203,7 +224,7 @@ One folder per job. Whatever the artist asked for, and nothing else:
 
 ```
 <source>_performance/
-    <source>_composite.mp4         the stack as composited, source audio
+    <source>_composite.mp4         the stack as composited
     <source>_depth.mp4             the depth layer alone, if asked for
     <source>_faces.mov             the face layer alone, with alpha, if asked for
     <source>_landmarks.json        per face, per frame, normalised
@@ -211,7 +232,8 @@ One folder per job. Whatever the artist asked for, and nothing else:
 ```
 
 A single-pass output is the stack with one layer enabled, so these come from
-one code path rather than an export mode each.
+one code path rather than an export mode each. Each carries the source audio
+unless the artist asked for it to be left out.
 
 Working files live in `.performance-work/` inside it — the mezzanine, the
 proxy, the stored depth field, and the result review proxy. The folder is kept

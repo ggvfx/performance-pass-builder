@@ -356,6 +356,110 @@ class DepthWindow(BaseModel):
 
 
 # =====================================================================
+# THE STACK
+#
+# An ordered list of layers, index 0 at the bottom, each composited over the
+# one below. A pass produces a layer; the stack arranges them. The compositor
+# knows nothing about what made any of them.
+# =====================================================================
+
+
+class LayerSource(str, Enum):
+    """
+    What makes a layer's picture.
+
+    Backgrounds and passes are one list on purpose: the compositor should not
+    care which a layer came from, and the day a segmented region sits over the
+    plate, the plate has to be a layer like any other rather than a special
+    case underneath everything.
+
+    Notes:
+        PLATE, GREY, BLACK and DEPTH are opaque and fill the frame.
+        FACE_MESH has alpha, so what is under it shows through — which is what
+        makes "the mesh over the plate" the way to check a track, and "the mesh
+        over grey" the way to look at it on its own.
+    """
+
+    PLATE = "plate"          # The original footage, unaltered
+    GREY = "grey"            # A flat card. 18% by default — see config
+    BLACK = "black"
+    DEPTH = "depth"
+    FACE_MESH = "face_mesh"
+
+
+class Layer(BaseModel):
+    """One entry in the stack."""
+
+    source: LayerSource
+    enabled: bool = True
+
+
+class LayerStack(BaseModel):
+    """
+    What gets composited, and in what order.
+
+    **Index 0 is the bottom.** The UI lists them the other way up, the way a
+    layer panel reads, which is a display decision and not this one.
+
+    Notes:
+        Editable: layers are reordered and switched on and off. That is the
+        whole point rather than a convenience — a segmented depth region over
+        the plate is a different stack from the same two layers the other way
+        round, and neither is more correct.
+
+        Switching every layer but one off is how a single pass is delivered,
+        so there is no separate export path.
+
+        In v1 "over" is the only operator. Opacity, blend modes and masks fit
+        here without changing the shape, and have nothing to drive them yet.
+    """
+
+    layers: list[Layer] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def check_each_source_appears_once(self) -> "LayerStack":
+        """
+        Notes:
+            One layer per source in v1. The same pass twice — depth at two
+            different windows, say — needs a per-layer setting to tell them
+            apart, and until that exists a duplicate is a mistake rather than
+            an intention.
+        """
+        sources = [layer.source for layer in self.layers]
+        duplicates = {source for source in sources if sources.count(source) > 1}
+        if duplicates:
+            raise ValueError(f"one layer per source; repeated: {sorted(s.value for s in duplicates)}")
+        return self
+
+    @computed_field
+    @property
+    def enabled_sources(self) -> list[LayerSource]:
+        """What will actually be composited, bottom first."""
+        return [layer.source for layer in self.layers if layer.enabled]
+
+
+class OutputRequest(BaseModel):
+    """
+    One delivery: what to composite, and what to put in the container.
+
+    Notes:
+        `include_audio` is a choice rather than an assumption. When audio is
+        carried it is carried untouched — stream-copied, never re-encoded, so
+        lip sync is driven by exactly what was recorded — but there are real
+        reasons to leave it out: a pass going to a model that ignores it, or
+        client audio that should not travel with a file.
+
+        Discarding is **checked**, not just skipped: the validator asserts the
+        output has no audio stream. For the privacy case, "we did not add it"
+        and "it is not there" are different claims.
+    """
+
+    stack: LayerStack
+    include_audio: bool = True
+    name: str = Field(min_length=1)  # The deliverable's file stem
+
+
+# =====================================================================
 # SELECTION
 # =====================================================================
 

@@ -16,6 +16,10 @@ from pydantic import ValidationError
 from src.core.models import (
     LANDMARK_COUNT,
     AudioInfo,
+    Layer,
+    LayerSource,
+    LayerStack,
+    OutputRequest,
     DepthBackendName,
     DepthModel,
     DepthWindow,
@@ -261,6 +265,92 @@ def test_window_reports_how_much_of_the_range_it_spans():
     """The number that decides how many output levels a pull leaves."""
     assert DepthWindow(near=0.0, far=1.0).width == 1.0
     assert DepthWindow(near=0.45, far=0.55).width == pytest.approx(0.10)
+
+
+# --- THE STACK ---
+
+
+def a_stack(*sources, disabled=()) -> LayerStack:
+    """Bottom first, the way the model stores it."""
+    return LayerStack(
+        layers=[Layer(source=s, enabled=s not in disabled) for s in sources]
+    )
+
+
+def test_index_zero_is_the_bottom():
+    """The one convention a careless edit would reverse."""
+    stack = a_stack(LayerSource.PLATE, LayerSource.DEPTH, LayerSource.FACE_MESH)
+
+    assert stack.layers[0].source is LayerSource.PLATE
+    assert stack.enabled_sources[0] is LayerSource.PLATE
+    assert stack.enabled_sources[-1] is LayerSource.FACE_MESH
+
+
+def test_the_same_two_layers_either_way_up_are_different_stacks():
+    """
+    Not a quirk to be normalised away: a segmented depth region over the plate
+    and the plate over that region are both things someone might want.
+    """
+    over = a_stack(LayerSource.PLATE, LayerSource.DEPTH)
+    under = a_stack(LayerSource.DEPTH, LayerSource.PLATE)
+
+    assert over.enabled_sources != under.enabled_sources
+
+
+def test_switching_layers_off_is_how_a_single_pass_is_delivered():
+    """So there is no separate export path to keep in step with this one."""
+    stack = a_stack(
+        LayerSource.GREY, LayerSource.DEPTH, LayerSource.FACE_MESH,
+        disabled=(LayerSource.GREY, LayerSource.FACE_MESH),
+    )
+
+    assert stack.enabled_sources == [LayerSource.DEPTH]
+
+
+def test_a_source_cannot_appear_twice():
+    """Until a per-layer setting can tell two of the same pass apart."""
+    with pytest.raises(ValidationError, match="one layer per source"):
+        a_stack(LayerSource.DEPTH, LayerSource.DEPTH)
+
+
+def test_a_stack_needs_a_layer():
+    with pytest.raises(ValidationError):
+        LayerStack(layers=[])
+
+
+def test_the_mesh_can_sit_over_the_plate_or_over_grey():
+    """
+    The mesh is the one layer with alpha, so what is under it shows through.
+    Over the plate is how a track is checked; over grey is how the mesh is
+    looked at on its own. Both are the same mechanism.
+    """
+    for background in (LayerSource.PLATE, LayerSource.GREY):
+        stack = a_stack(background, LayerSource.FACE_MESH)
+        assert stack.enabled_sources == [background, LayerSource.FACE_MESH]
+
+
+# --- OUTPUT ---
+
+
+def test_audio_is_carried_by_default():
+    """Carried untouched when it is carried — but whether to is a choice."""
+    request = OutputRequest(stack=a_stack(LayerSource.DEPTH), name="take_01_depth")
+
+    assert request.include_audio is True
+
+
+def test_audio_can_be_discarded():
+    """For a pass going to a model that ignores it, or client audio that should not travel."""
+    request = OutputRequest(
+        stack=a_stack(LayerSource.DEPTH), name="take_01_depth", include_audio=False
+    )
+
+    assert request.include_audio is False
+
+
+def test_an_output_has_to_be_called_something():
+    with pytest.raises(ValidationError):
+        OutputRequest(stack=a_stack(LayerSource.DEPTH), name="")
 
 
 # --- SELECTION ---
