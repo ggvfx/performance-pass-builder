@@ -20,19 +20,20 @@ costs money per call.
 
 ---
 
-## Phase 0 — Documents (Current)
+## Phase 0 — Documents
 
 - [x] **0.1** CLAUDE.md, ARCHITECTURE.md, TODO.md, README.md, THIRD-PARTY.md
 - [x] **0.2** `.gitignore`, `ruff.toml`, `pytest.ini`
 - [x] **0.3** Review the documents and agree the design
 - [x] **0.4** Licence for a public repo — MIT
 - [x] **0.5** First commit and push to `github.com/ggvfx/performance-pass-builder`
-- [ ] **0.6** Replace the code conventions in CLAUDE.md with a pointer to
-      `CODE_STYLE.md` once it is available
+- [x] **0.6** Replace the code conventions in CLAUDE.md with a pointer to
+      `CODE_STYLE.md` once it is available. Project-specific decisions kept in
+      CLAUDE.md; the shared rules now live only in `D:\_repos\CODE_STYLE.md`
 
 ---
 
-## Phase 1 — Scaffold & Foundations
+## Phase 1 — Scaffold & Foundations (Current)
 
 - [x] **1.1** Python 3.12+ on the dev machine, venv, and `requirements.txt`
       pinned to versions that install together on Windows and Apple Silicon.
