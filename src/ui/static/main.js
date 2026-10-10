@@ -6,12 +6,19 @@
  * is clicked" is always in this file.
  */
 
-import { wireTabs } from "./tabs.js";
+import { loadEnvironment } from "./environment.js";
+import { whenShown, wireTabs } from "./tabs.js";
 
 document.addEventListener("DOMContentLoaded", () => {
     wireTabs();
 
+    // The strip on the workflow tab is the answer to "can I start?", so it is
+    // filled on load rather than when Setup is first opened.
+    loadEnvironment();
+
     // Each tab loads what it shows when it is opened, not on page load.
-    // Registrations join here as the tabs gain something to load: the
-    // environment panel at 1.6, the backend rows at 4.4.
+    whenShown("setup", () => loadEnvironment());
+
+    document.getElementById("recheck-button")
+        .addEventListener("click", () => loadEnvironment(true));
 });

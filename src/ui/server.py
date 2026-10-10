@@ -4,8 +4,8 @@ The App.
 Creates the FastAPI app, serves the page, and mounts the static files. Nothing
 else — this is the assembly, not the work.
 
-Routers join as their tasks land: setup at 1.4, the path picker at 1.5, the
-performance pass in Phase 5. Each lives in `src/ui/routes/`, one module per tab.
+Routers join as their tasks land: the path picker at 1.7, the performance
+pass in Phase 5. Each lives in `src/ui/routes/`, one module per tab.
 """
 
 from fastapi import FastAPI
@@ -13,8 +13,14 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.core.config import APP_NAME, STATIC_DIR
+from src.ui.routes import setup
 
 app = FastAPI(title=APP_NAME)
+
+# --- ROUTES ---
+
+# Setup first, because it is what a machine with nothing installed needs.
+app.include_router(setup.router)
 
 # --- PAGE ---
 

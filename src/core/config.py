@@ -32,6 +32,48 @@ STATIC_DIR = REPO_ROOT / "src" / "ui" / "static"
 # Set by numpy 2.5.3, which will not install on anything older.
 MIN_PYTHON = (3, 12)
 
+# --- FFMPEG REQUIREMENTS ---
+
+# The proxy and both deliverables are h264, so a build without this cannot
+# produce a pass at all.
+REQUIRED_ENCODER = "libx264"
+
+# The mezzanine keeps the source's own codec, so an h265 source needs this one.
+# Its absence is a limitation, not a failure.
+OPTIONAL_ENCODERS = ("libx265",)
+
+# Burns the frame number into each proxy frame. Needs an ffmpeg built with
+# libfreetype, which Homebrew's bottle is not — and asking for a filter that
+# does not exist aborts the whole encode rather than degrading it, so it is
+# checked for before the proxy is built.
+DRAWTEXT_FILTER = "drawtext"
+
+# --- HOSTED DEPTH ---
+
+# The variable holding the key, never the key. Read at the moment of the call.
+FAL_KEY_VARIABLE = "FAL_KEY"
+
+# --- DISK ---
+
+# Rough figure for all-intra h264 at 1080p24, from minicut's measurements on
+# real footage. Only used to turn free space into "about N minutes of source",
+# which is a far more useful thing to read than a number of gigabytes.
+GB_PER_MINUTE_1080P24 = 1.5
+
+# A job writes the mezzanine, the proxy, the stored depth and two deliverables.
+# The mezzanine and the deliverables dominate; three source-sized copies is the
+# honest round number.
+DISK_COPIES_PER_JOB = 3
+
+# Below this the panel says so. Not a refusal — the user may know the job is
+# short.
+MIN_FREE_GB = 20.0
+
+# --- SOURCE FILES ---
+
+# What the path picker offers. Lowercase; compared against a lowercased suffix.
+VIDEO_SUFFIXES = {".mov", ".mp4", ".mxf", ".mkv", ".avi", ".m4v", ".mpg", ".mpeg", ".webm"}
+
 # --- SERVER ---
 
 # Loopback only. The path picker lists this machine's filesystem, so the
