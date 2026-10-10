@@ -26,7 +26,7 @@ of them is designed yet, and nothing in v1 is built speculatively for them.
 
 | Layer | Choice | Notes |
 |---|---|---|
-| Backend | Python 3.11+, FastAPI | Plain blocking routes until a measurement says otherwise |
+| Backend | Python 3.12+, FastAPI | Plain blocking routes until a measurement says otherwise |
 | Frontend | Plain HTML + CSS + vanilla JS | ES modules, no npm, no build step |
 | Serving | FastAPI static files on localhost | User opens it in their own browser |
 | Media | ffmpeg / ffprobe as subprocesses | Frames streamed through pipes, never a Python binding |

@@ -34,8 +34,10 @@ costs money per call.
 
 ## Phase 1 — Scaffold & Foundations
 
-- [ ] **1.1** Python 3.11+ on the dev machine, venv, and `requirements.txt`
-      pinned to versions that install together on Windows and Apple Silicon
+- [ ] **1.1** Python 3.12+ on the dev machine, venv, and `requirements.txt`
+      pinned to versions that install together on Windows and Apple Silicon.
+      *Windows done:* Python 3.12.13, everything installs and imports, `pip
+      check` clean. Apple Silicon still to check, on the M4 Pro.
 - [ ] **1.2** `setup.bat` and `setup.command`
 - [ ] **1.3** FastAPI server on localhost, the page with two tabs, static
       files served so the browser re-checks them

@@ -49,7 +49,7 @@ meant to be a small tool an artist can run.
   and committed separately.
 
 ## Planned Stack
-* **Language:** Python 3.11+
+* **Language:** Python 3.12+
 * **Backend:** FastAPI, Uvicorn, Pydantic
 * **Frontend:** Plain HTML, CSS and vanilla JavaScript ES modules — no build step
 * **Media:** ffmpeg / ffprobe as subprocesses

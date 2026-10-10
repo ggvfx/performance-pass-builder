@@ -1,0 +1,26 @@
+# Versions are pinned exactly on purpose. MediaPipe's landmark output and the
+# frame handling around it shift between releases, and a floating version turns
+# a reproducible pass into a mystery. Update deliberately, then re-run the suite.
+#
+# Direct dependencies only. What these pull in — matplotlib, sounddevice,
+# absl-py, flatbuffers, certifi for MediaPipe — is resolved by pip.
+
+# --- CORE FRAMEWORK ---
+fastapi==0.143.0                  # Local web server and JSON API
+uvicorn==0.54.0                   # ASGI server that runs it
+pydantic==2.14.0                  # Data models, config, and sidecar validation
+
+# --- FACE TRACKING ---
+mediapipe==1.1.0                  # Face Landmarker. Wheels for Windows and
+                                  # Apple Silicon macOS — not Intel macOS
+opencv-contrib-python==5.0.0.93   # Draws the mesh. The contrib build because
+                                  # MediaPipe depends on it: installing plain
+                                  # opencv-python beside it puts two packages
+                                  # in charge of the same cv2 module
+numpy==2.5.3                      # Frames as arrays. Needs Python 3.12+, which
+                                  # is what sets the project's minimum
+
+# --- DEVELOPMENT ---
+pytest==9.1.1                     # Unit and route tests
+httpx==0.28.1                     # Required by FastAPI's TestClient for the route tests
+ruff==0.17.0                      # Lint: unused imports, dead code, line length
