@@ -14,6 +14,11 @@ export const state = {
     activeTab: "performance",  // The tab currently shown
 
     // --- PERFORMANCE PASS ---
+    sourcePath: "",       // The footage to build a pass from
+
+    // --- PATH PICKER ---
+    pickerMode: "",       // "source" picks a video file
+    pickerPath: "",       // The directory currently shown
 
     // --- SETUP ---
 };

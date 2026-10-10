@@ -7,6 +7,8 @@
  */
 
 import { loadEnvironment } from "./environment.js";
+import { openPicker } from "./picker.js";
+import { state } from "./state.js";
 import { whenShown, wireTabs } from "./tabs.js";
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -21,4 +23,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("recheck-button")
         .addEventListener("click", () => loadEnvironment(true));
+
+    // --- PATH PICKER ---
+
+    for (const button of document.querySelectorAll("[data-picker]")) {
+        button.addEventListener("click", () => openPicker(button.dataset.picker));
+    }
+
+    document.getElementById("picker-close")
+        .addEventListener("click", () => document.getElementById("picker").close());
+
+    // Typed paths are as valid as picked ones
+    document.getElementById("source-path")
+        .addEventListener("change", (event) => { state.sourcePath = event.target.value; });
 });

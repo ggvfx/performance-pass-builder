@@ -50,11 +50,20 @@ def test_the_whole_workflow_is_on_the_page():
     )
 
 
-def test_every_performance_control_is_disabled():
+# Controls on the Performance tab that are wired and so may be enabled.
+# Everything else must be dimmed: a control that looks ready and does nothing
+# is worse than one that admits it. Adding to this list is how enabling a
+# control stays a deliberate act rather than something that slips through.
+LIVE_CONTROLS = {
+    'id="source-path"',      # 1.7 — a typed path is as valid as a picked one
+    'data-picker="source"',  # 1.7 — opens the path picker
+}
+
+
+def test_only_wired_performance_controls_are_enabled():
     """
-    Deliberate, not unfinished: nothing on this tab is wired yet, and a control
-    that looks ready and does nothing is worse than one that admits it. This
-    fails the day a control is enabled without its handler being wired.
+    The shape of the workflow is laid out before it works, so it can be seen
+    and argued with. Anything not yet wired is dimmed rather than hidden.
     """
     page = client.get("/").text
     performance = page.split('id="performance"')[1].split('id="setup"')[0]
@@ -63,7 +72,10 @@ def test_every_performance_control_is_disabled():
     assert controls, "the performance tab should lay its controls out"
 
     for control in controls:
-        assert "disabled" in control, f"not disabled: {control}"
+        if any(marker in control for marker in LIVE_CONTROLS):
+            print(f"live: {control}")
+            continue
+        assert "disabled" in control, f"not wired, but not disabled either: {control}"
 
 
 def test_setup_has_somewhere_for_the_environment_panel_to_land():

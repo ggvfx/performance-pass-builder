@@ -67,8 +67,8 @@
                 Typed or chosen. Nothing is uploaded until you ask for hosted depth.
             </p>
             <div class="path-row">
-                <input type="text" id="source-path" placeholder="Path to the footage" disabled>
-                <button class="secondary" data-picker="source" disabled>Browse</button>
+                <input type="text" id="source-path" placeholder="Path to the footage">
+                <button class="secondary" data-picker="source">Browse&hellip;</button>
             </div>
             <div class="action-row">
                 <button id="inspect-button" disabled>Inspect</button>
@@ -198,6 +198,20 @@
     </section>
 
 </main>
+
+<!-- ===== PATH PICKER ===== -->
+
+<!-- Server-side rather than the browser's own file dialog: the media and the
+     app are on one machine, so a multi-gigabyte source is named by its path
+     and never uploaded to reach a server that could have opened it. -->
+<dialog id="picker">
+    <div class="picker-header">
+        <span id="picker-path" class="picker-path"></span>
+        <button id="picker-close" class="secondary">Close</button>
+    </div>
+    <div id="picker-roots" class="picker-roots"></div>
+    <ul id="picker-entries" class="picker-entries"></ul>
+</dialog>
 
 <script type="module" src="/static/main.js"></script>
 </body>
