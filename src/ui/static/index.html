@@ -18,25 +18,183 @@
     </nav>
 </header>
 
+<!-- The page is a workflow: every section sits in the order it is used, so the
+     only direction anyone needs to move is down.
+
+     Every control is disabled today. That is deliberate rather than
+     unfinished — the shape of the job is easier to argue with when you can
+     see it, and a dimmed control admits it does nothing, where one that looks
+     ready does not. -->
 <main>
 
     <!-- ===== PERFORMANCE PASS TAB ===== -->
     <section id="performance" class="tab-panel active">
+
+        <!-- Filled by environment.js at task 1.6. One line, and it links to
+             Setup rather than putting a panel nobody reads above the work. -->
+        <p id="performance-health" class="health" hidden></p>
+
         <section class="intro">
             <p>
-                <strong>Turns footage into a performance pass</strong> — full-frame depth with a
-                face mesh over each face you choose, and the original audio.
+                <strong>Turns footage into a performance pass</strong> — depth with a face
+                mesh over each face you choose, and the original audio.
             </p>
-            <p class="hint">Nothing to do here yet. The workflow arrives in Phase 5.</p>
+            <p class="hint">
+                Hand the result to a video generation model as reference video, to replace
+                the actor and the background while keeping the performance.
+            </p>
         </section>
+
+        <section class="limitations">
+            <h2>What this version handles</h2>
+            <ul>
+                <li><strong>Constant frame rate sources only.</strong> Variable frame rate is
+                    refused: frame numbers would not map reliably to time.</li>
+                <li><strong>Up to 1080p and 2,400 frames</strong> per hosted depth call.</li>
+                <li><strong>Faces, not bodies.</strong> Depth carries the staging; the mesh
+                    carries the expression.</li>
+                <li><strong>One window for the whole clip.</strong> Per-frame depth ranges
+                    would make the depth pump.</li>
+            </ul>
+        </section>
+
+        <!-- ===== 1 · SOURCE ===== -->
+        <section class="card">
+            <div class="card-header">
+                <h2>1 · Source</h2>
+            </div>
+            <p class="hint">
+                Typed or chosen. Nothing is uploaded until you ask for hosted depth.
+            </p>
+            <div class="path-row">
+                <input type="text" id="source-path" placeholder="Path to the footage" disabled>
+                <button class="secondary" data-picker="source" disabled>Browse</button>
+            </div>
+            <div class="action-row">
+                <button id="inspect-button" disabled>Inspect</button>
+                <span id="inspect-status" class="status">Arrives at task 2.1.</span>
+            </div>
+        </section>
+
+        <!-- ===== 2 · PREPARE ===== -->
+        <section class="card" id="prepare-card">
+            <div class="card-header">
+                <h2>2 · Prepare</h2>
+            </div>
+            <p class="hint">
+                Reads the source, builds the all-intra copy every seek lands on, makes the
+                numbered proxy, and fetches depth.
+            </p>
+            <dl class="facts" id="source-facts">
+                <dt>Frame rate</dt><dd>—</dd>
+                <dt>Frames</dt><dd>—</dd>
+                <dt>Resolution</dt><dd>—</dd>
+                <dt>Audio</dt><dd>—</dd>
+            </dl>
+            <div class="action-row">
+                <button id="prepare-button" disabled>Prepare</button>
+                <span id="prepare-status" class="status">Arrives at task 5.3.</span>
+            </div>
+            <div id="progress" class="progress" hidden><div class="progress-bar"></div></div>
+        </section>
+
+        <!-- ===== 3 · FACES ===== -->
+        <section class="card" id="faces-card">
+            <div class="card-header">
+                <h2>3 · Faces</h2>
+            </div>
+            <p class="hint">
+                Scrub to a frame where a face is clear and draw a box round it. Add another
+                box wherever a track breaks — past a turn away from camera, or a wipe.
+            </p>
+            <ul class="faces" id="face-list">
+                <li class="face">
+                    <span class="face-label">No faces yet</span>
+                    <span class="face-seeds">The player and selection arrive at task 5.1.</span>
+                </li>
+            </ul>
+        </section>
+
+        <!-- ===== 4 · DEPTH ===== -->
+        <section class="card" id="depth-card">
+            <div class="card-header">
+                <h2>4 · Depth</h2>
+            </div>
+            <p class="hint">
+                Position the 0&ndash;1 range over the part of the shot that matters, so the
+                whole output range is spent there rather than on everything from the lens to
+                the horizon. Local and instant: changing it never calls the model again.
+            </p>
+            <dl class="facts" id="depth-facts">
+                <dt>Model</dt><dd>—</dd>
+                <dt>Stored precision</dt><dd>—</dd>
+                <dt>Window</dt><dd>—</dd>
+                <dt>Colour map</dt><dd>—</dd>
+            </dl>
+            <p class="hint">The window controls arrive at task 5.2.</p>
+        </section>
+
+        <!-- ===== 5 · RUN ===== -->
+        <section class="card" id="run-card">
+            <div class="card-header">
+                <h2>5 · Run</h2>
+            </div>
+            <p class="hint">
+                Tracks each face on this machine, draws its mesh over the depth, and copies
+                the source audio in untouched. Every pass is checked against the source
+                before it is handed over.
+            </p>
+            <div class="action-row">
+                <button id="run-button" disabled>Run</button>
+                <span id="run-status" class="status">Arrives at task 5.3.</span>
+            </div>
+
+            <!-- Housekeeping rather than part of the job, so it sits below the
+                 rule. It matters here: the depth in that folder was paid for. -->
+            <div id="work-row" class="work-row" hidden>
+                <span id="work-detail" class="status"></span>
+                <button id="work-clear" class="secondary" disabled>Clear</button>
+            </div>
+        </section>
+
     </section>
 
     <!-- ===== SETUP TAB ===== -->
     <section id="setup" class="tab-panel">
+
         <section class="intro">
-            <p><strong>Everything done once</strong> — what is installed, and how depth is generated.</p>
-            <p class="hint">The dependency panel arrives in task 1.4.</p>
+            <p>
+                <strong>What the app needs, and where depth comes from</strong> — check what
+                is installed and choose the depth backend.
+            </p>
+            <p class="hint">
+                You should only need this once. The Performance Pass tab will say if
+                something here stops working.
+            </p>
         </section>
+
+        <section class="card">
+            <div class="card-header">
+                <h2>Performance Pass</h2>
+                <span id="environment-summary" class="summary">Not checked yet</span>
+                <span id="recheck-button" class="inline-button" role="button" tabindex="0">Re-check</span>
+            </div>
+            <p class="hint">What is needed to build a performance pass.</p>
+            <ul id="environment-checks" class="checks"></ul>
+        </section>
+
+        <section class="card">
+            <div class="card-header">
+                <h2>Depth</h2>
+                <span id="backend-summary" class="summary">Not checked yet</span>
+            </div>
+            <p class="hint">
+                Which backend produces depth, and whether its key is configured. Hosted is
+                the default; a machine with no GPU and a key is fully supported.
+            </p>
+            <p class="hint">Arrives at task 4.4.</p>
+        </section>
+
     </section>
 
 </main>

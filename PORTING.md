@@ -155,7 +155,7 @@ a `.npz` back.
 | `main.js` | 88 | **done** | Already in this repo in miniature. Grows as listeners are added | 1.2 ✔ |
 | `tabs.js` | 40 | ~100% | Already in this repo; `whenShown` is still to come | 1.2 ✔ |
 | `state.js` | 37 | ~100% | Already in this repo as the empty shape | 1.2 ✔ |
-| `ui.js` | 28 | ~100% | Nothing | 1.4 |
+| `ui.js` | 28 | ~100% | Nothing, but deferred: its only callers are `source.js` and the run flow, so porting it at 1.4 left an unreferenced module | 5.3 |
 | `identify.js`, `columns.js`, `splitting.js` | 965 | 0% | — | — |
 
 ---
@@ -166,8 +166,8 @@ Ticked when the module is in this repo, trimmed, modernised, carrying its
 provenance line, and covered by a test that runs.
 
 - [ ] **1.3** the three model shapes as reference — `models.py` is **not** copied
-- [ ] **1.4** `styles.css`, the `index.html` patterns, `ui.js`, `tabs.js`'s
-      `whenShown` — the shell and the look, early
+- [ ] **1.4** `styles.css`, the `index.html` patterns, `tabs.js`'s `whenShown`
+      — the shell and the look, early
 - [ ] **1.5** `ffmpeg_tools.py`, `utils.py`, the `config.py` shape
 - [ ] **1.6** `environment.py`, `templates.py`, `runtime.py`, `routes/setup.py`'s
       environment half, `environment.js`
@@ -181,7 +181,7 @@ provenance line, and covered by a test that runs.
 - [ ] **4.3** `adapter.py` and `transport.py` shapes
 - [ ] **4.4** `availability.py`, the depth-backend half of `setup.js`
 - [ ] **5.1** `player.js`, the transport and timeline CSS
-- [ ] **5.3** `routes/splitter.py` shape, `source.js`
+- [ ] **5.3** `routes/splitter.py` shape, `source.js`, `ui.js`
 - [ ] **5.6** `work.js`
 
 When the last box is ticked: confirm every ported module has its provenance

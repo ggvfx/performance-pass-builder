@@ -6,10 +6,12 @@
  * is clicked" is always in this file.
  */
 
-import { showTab } from "./tabs.js";
+import { wireTabs } from "./tabs.js";
 
 document.addEventListener("DOMContentLoaded", () => {
-    for (const button of document.querySelectorAll(".tab")) {
-        button.addEventListener("click", () => showTab(button.dataset.tab));
-    }
+    wireTabs();
+
+    // Each tab loads what it shows when it is opened, not on page load.
+    // Registrations join here as the tabs gain something to load: the
+    // environment panel at 1.6, the backend rows at 4.4.
 });
