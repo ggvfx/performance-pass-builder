@@ -168,7 +168,10 @@ length with the same audio, proven before any model exists.
 - [x] **2.7** Validator *(port — `splitter/validator.py`, ~35%)* — frame count, rate, duration, audio.
       Only the `framemd5` frame-hash machinery comes across; every shot-list
       check stays behind. Blocks
-- [ ] **2.8** Sidecar *(port — `core/sidecar.py`)*
+- [x] **2.8** Sidecar *(port — `core/sidecar.py`)*. *Done (15 tests).
+      Records the source, the depth, the tracking, every deliverable with the
+      stack that made it, and the environment — written whether the job passed
+      or failed.*
 - [ ] **2.9** Working folder *(port — `media/workspace.py`)* — `.performance-work/`, reclaimable space
       reported and cleared on request, never behind the user's back
 

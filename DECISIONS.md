@@ -14,6 +14,21 @@ again.
 
 ## Phase 2 — 2.7 to 2.9
 
+### 2.8 — Sidecar
+
+- [ ] **The `Sidecar` model lives in `sidecar.py`, not `models.py`.** It has
+      to reference the run settings, and `config.py` imports `models.py` — a
+      model naming a settings type there would point the dependency arrow
+      backwards. The settings arrive as a free-form dump instead, which is
+      the one place in the project not using a typed model.
+- [ ] **A job with no deliverables has not passed.** `all([])` is True, so
+      "produced nothing" would otherwise read as success.
+- [ ] **Timestamps are UTC with an explicit offset.** These files travel
+      between machines, and a naive local time is worse than none.
+- [ ] **A `DeliverableRecord` carries the whole stack**, not just the format.
+      Without it, "why does this composite look like that" has no answer six
+      months on.
+
 ### 2.7 — Validator
 
 - [ ] **Frame hashes are not part of `validate()`.** They cost a full decode
