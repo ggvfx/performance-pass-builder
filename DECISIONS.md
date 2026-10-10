@@ -14,6 +14,19 @@ again.
 
 ## Phase 2 — 2.7 to 2.9
 
+### 2.9 — Working folder
+
+- [ ] **A working file can be a folder.** A PNG sequence layer is many files,
+      so reclaimable space counts a folder's contents and clearing removes it
+      whole. Counting only loose files would report kilobytes where there are
+      gigabytes. minicut had no case like this.
+- [ ] **Four suffixes rather than minicut's two** — mezzanine, proxy, depth
+      field, layer — and they are matched longest-first, because
+      `_depth_field` must be tried before anything that is a prefix of it.
+- [ ] **Nothing is reclaimed automatically**, as in minicut, but the stakes
+      are higher here: the cached depth was paid for, so deleting it to save
+      disk means paying again. Clearing stays something the user asks for.
+
 ### 2.8 — Sidecar
 
 - [ ] **The `Sidecar` model lives in `sidecar.py`, not `models.py`.** It has

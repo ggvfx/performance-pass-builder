@@ -172,12 +172,16 @@ length with the same audio, proven before any model exists.
       Records the source, the depth, the tracking, every deliverable with the
       stack that made it, and the environment — written whether the job passed
       or failed.*
-- [ ] **2.9** Working folder *(port — `media/workspace.py`)* — `.performance-work/`, reclaimable space
-      reported and cleared on request, never behind the user's back
+- [x] **2.9** Working folder *(port — `media/workspace.py`)* — `.performance-work/`, reclaimable space
+      reported and cleared on request, never behind the user's back. *Done
+      (15 tests). Handles a sequence layer, which is a folder rather than a
+      file — counted and removed whole.*
 
 **Phase done when:** a source goes in and an output of exactly its length
 comes out with its audio, verified by the validator rather than by eye — and
-two stand-in layers composite into one.
+two stand-in layers composite into one. **Met.** Every piece is proven
+against clips ffmpeg generated; whether it is right on real footage is the
+checkpoint at 4.11.
 
 ---
 
