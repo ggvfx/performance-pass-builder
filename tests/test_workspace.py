@@ -13,8 +13,10 @@ folder was paid for.
 
 from pathlib import Path
 
+from src.media import workspace
 from src.media.workspace import (
     WORK_DIRECTORY,
+    WORK_SUFFIXES,
     clear_work,
     owning_source,
     reclaimable_bytes,
@@ -55,6 +57,39 @@ def test_a_similar_name_is_not_claimed_by_a_shorter_one():
     """
     assert owning_source(Path("take_02_extra_mezzanine.mov")) == "take_02_extra"
     assert owning_source(Path("take_02_extra_mezzanine.mov")) != "take_02"
+
+
+def test_the_suffixes_are_ordered_so_a_longer_one_always_wins():
+    """
+    `owning_source` strips the first suffix that matches the end of a name, so
+    where one suffix ends with another the longer has to be tried first. The
+    tuple is sorted by length for exactly that reason, and this holds it there
+    for a fifth suffix added later.
+    """
+    assert list(WORK_SUFFIXES) == sorted(WORK_SUFFIXES, key=len, reverse=True)
+
+    for longer in WORK_SUFFIXES:
+        for shorter in WORK_SUFFIXES:
+            if longer != shorter and longer.endswith(shorter):
+                assert WORK_SUFFIXES.index(longer) < WORK_SUFFIXES.index(shorter), (
+                    f"{shorter} would be stripped out of {longer} first"
+                )
+
+
+def test_a_suffix_ending_with_another_is_still_stripped_whole(monkeypatch):
+    """
+    The hazard the ordering guards, made concrete rather than hypothetical.
+    Add "_field" alongside "_depth_field" in the wrong order and
+    "take_01_depth_field.mkv" reports its owner as "take_01_depth" — a source
+    that does not exist, so clearing would spare the wrong file.
+    """
+    monkeypatch.setattr(
+        workspace,
+        "WORK_SUFFIXES",
+        tuple(sorted(("_field", "_depth_field"), key=len, reverse=True)),
+    )
+
+    assert workspace.owning_source(Path("take_01_depth_field.mkv")) == "take_01"
 
 
 def test_scratch_belonging_to_nothing_is_always_reclaimable():

@@ -279,6 +279,13 @@ assumes these hold.
       leaving frame and coming back. A profile turn
 - [ ] **4.13** The deliverables open where they are going: the mp4 in the
       generation tool, the mesh layer in Nuke
+- [ ] **4.14** Audio **verified**, not merely present. `check_audio` confirms
+      a stream exists when one was claimed, which would pass a truncated or
+      wrong-codec track — and non-negotiable 3 says carried audio is
+      untouched. Compare the source's audio duration and codec against the
+      output's; the probe already returns both, so it costs nothing. The
+      failure this catches is a long take whose sound stops early, which
+      nothing would currently report
 
 **Checkpoint done when:** a pass built from real footage has been looked at,
 not merely measured.
@@ -316,7 +323,12 @@ opening the app for the first time should be able to see the shape of the job.
       prepare, run one pass, composite, output
 - [ ] **5.7** The warning before footage is uploaded, and the raw-depth
       download offered with its cost stated
-- [ ] **5.8** Work folder panel *(port — `work.js`)*
+- [ ] **5.8** Work folder panel *(port — `work.js`)*: what the working files
+      are costing in GB, and a clear button. Reported rather than acted on —
+      an artist reuses a pass to make several outputs from it, so nothing goes
+      until it is asked for, and the source being worked on is spared even
+      then. `reclaimable_bytes` and `clear_work` are written and waiting for
+      this panel to call them
 - [ ] **5.9** An install guide on the Setup tab — how to install what the app
       needs, readable whatever state the machine is in. The checks only speak
       up when something is missing, which is no use to someone setting up a

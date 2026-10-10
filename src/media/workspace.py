@@ -38,14 +38,29 @@ MEZZANINE_SUFFIX = "_mezzanine"
 DEPTH_SUFFIX = "_depth_field"
 LAYER_SUFFIX = "_layer"
 
-# Every suffix a working file can carry, longest first. Order matters:
-# `owning_source` strips the first match, and "_depth_field" has to be tried
-# before anything that is a prefix of it would be.
-WORK_SUFFIXES = (
-    MEZZANINE_SUFFIX,
-    DEPTH_SUFFIX,
-    LAYER_SUFFIX,
-    Path(PROXY_SUFFIX).stem,  # "_proxy", without the extension
+# Every suffix a working file can carry, sorted longest first rather than
+# written in that order by hand.
+#
+# `owning_source` strips the first suffix that matches the end of a name, so
+# where one suffix *ends with* another the longer has to be tried first. Add
+# "_field" alongside "_depth_field" and "take_01_depth_field.mkv" matches
+# both — strip the short one and the owner reads as "take_01_depth", a source
+# that does not exist, and clearing the folder would spare the wrong file.
+#
+# A longer suffix is what "ends with a shorter one" always implies, so
+# sorting by length is exactly the guard needed, and it keeps holding when a
+# fifth suffix is added here by someone who has not read this comment.
+WORK_SUFFIXES = tuple(
+    sorted(
+        (
+            MEZZANINE_SUFFIX,
+            DEPTH_SUFFIX,
+            LAYER_SUFFIX,
+            Path(PROXY_SUFFIX).stem,  # "_proxy", without the extension
+        ),
+        key=len,
+        reverse=True,
+    )
 )
 
 

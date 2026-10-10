@@ -28,16 +28,24 @@ again.
 
 ### 2.9 — Working folder
 
-- [ ] **A working file can be a folder.** A PNG sequence layer is many files,
+- [x] **A working file can be a folder.** A PNG sequence layer is many files,
       so reclaimable space counts a folder's contents and clearing removes it
       whole. Counting only loose files would report kilobytes where there are
       gigabytes. minicut had no case like this.
-- [ ] **Four suffixes rather than minicut's two** — mezzanine, proxy, depth
-      field, layer — and they are matched longest-first, because
-      `_depth_field` must be tried before anything that is a prefix of it.
-- [ ] **Nothing is reclaimed automatically**, as in minicut, but the stakes
+- [x] **Four suffixes rather than minicut's two** — mezzanine, proxy, depth
+      field, layer — matched longest-first, because where one suffix *ends
+      with* another the longer has to be stripped first. **Reviewed
+      2026-10-10 and the comment was wrong twice over:** the tuple was not
+      actually in that order, and the rule was stated as being about
+      prefixes. Harmless as it stood, since no two of the four overlap, but
+      it claimed a protection that was not there. Now sorted by length at
+      definition, so it holds for a fifth suffix too, with a test that fails
+      on a wrong order rather than only asserting the current one.
+- [x] **Nothing is reclaimed automatically**, as in minicut, but the stakes
       are higher here: the cached depth was paid for, so deleting it to save
       disk means paying again. Clearing stays something the user asks for.
+      **Agreed 2026-10-10:** a clear button, because an artist reuses a pass
+      to make several outputs from it. The panel that calls it is 5.8.
 
 ### 2.8 — Sidecar
 
@@ -50,8 +58,11 @@ again.
       written out, never read back and acted on.
 - [ ] **A job with no deliverables has not passed.** `all([])` is True, so
       "produced nothing" would otherwise read as success.
-- [ ] **Timestamps are UTC with an explicit offset.** These files travel
-      between machines, and a naive local time is worse than none.
+- [x] **Timestamps are UTC with an explicit offset.** These files travel
+      between machines, and a naive local time is worse than none. **Agreed
+      2026-10-10:** one machine-readable field only. If reading it is ever
+      awkward the UI formats it for display, rather than the file carrying
+      two timestamps that can disagree.
 - [ ] **A `DeliverableRecord` carries the whole stack**, not just the format.
       Without it, "why does this composite look like that" has no answer six
       months on.
@@ -67,9 +78,13 @@ again.
       and three failures for one problem is how a report stops being read.
       **Agreed 2026-10-10** — one failure for count, length and duration —
       and now held in place by a test, which nothing was doing before.
-- [ ] **The validator asks what the encoder *claimed* it did with the
+- [x] **The validator asks what the encoder *claimed* it did with the
       audio**, rather than inferring from the source. That is what lets an
       absent stream be correct for `OMITTED` and a failure for `COPIED`.
+      **Reviewed 2026-10-10 and a gap came out of it:** for the carrying
+      claims it only checks that *a* stream exists, which would pass a
+      truncated or re-encoded track while non-negotiable 3 says carried audio
+      is untouched. Comparing duration and codec is task 4.14.
 
 ## Phase 2 — before 2.6
 
