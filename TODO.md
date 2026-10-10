@@ -38,8 +38,9 @@ costs money per call.
       pinned to versions that install together on Windows and Apple Silicon.
       Python 3.12.13; everything installs and imports with `pip check` clean
       on Windows, and on Apple Silicon (M4 Pro).
-- [ ] **1.2** FastAPI server on localhost, the page with two tabs, static
-      files served so the browser re-checks them
+- [x] **1.2** FastAPI server on localhost, the page with two tabs, static
+      files served so the browser re-checks them *(6 tests)*. Tab switching
+      in a real browser still to be clicked through by hand.
 - [ ] **1.3** `MediaToolchain` — locate ffmpeg and ffprobe, read versions and
       encoders, the only place a subprocess runs
 - [ ] **1.4** Environment panel: three states, a copyable fix for every

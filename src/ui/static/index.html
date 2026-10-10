@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance Pass Builder</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+<!-- ===== HEADER AND TABS ===== -->
+<header>
+    <h1>Performance Pass Builder</h1>
+    <nav class="tabs">
+        <button class="tab active" data-tab="performance">Performance Pass</button>
+        <!-- Setup is not a workflow, so it sits apart from the one that is -->
+        <button class="tab tab-setup" data-tab="setup">Setup</button>
+    </nav>
+</header>
+
+<main>
+
+    <!-- ===== PERFORMANCE PASS TAB ===== -->
+    <section id="performance" class="tab-panel active">
+        <section class="intro">
+            <p>
+                <strong>Turns footage into a performance pass</strong> — full-frame depth with a
+                face mesh over each face you choose, and the original audio.
+            </p>
+            <p class="hint">Nothing to do here yet. The workflow arrives in Phase 5.</p>
+        </section>
+    </section>
+
+    <!-- ===== SETUP TAB ===== -->
+    <section id="setup" class="tab-panel">
+        <section class="intro">
+            <p><strong>Everything done once</strong> — what is installed, and how depth is generated.</p>
+            <p class="hint">The dependency panel arrives in task 1.4.</p>
+        </section>
+    </section>
+
+</main>
+
+<script type="module" src="/static/main.js"></script>
+</body>
+</html>

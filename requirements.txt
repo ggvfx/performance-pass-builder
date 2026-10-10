@@ -22,5 +22,6 @@ numpy==2.5.3                      # Frames as arrays. Needs Python 3.12+, which
 
 # --- DEVELOPMENT ---
 pytest==9.1.1                     # Unit and route tests
-httpx==0.28.1                     # Required by FastAPI's TestClient for the route tests
+httpx2==2.13.1                    # Required by FastAPI's TestClient for the route tests.
+                                  # Not httpx: Starlette deprecated it for this
 ruff==0.17.0                      # Lint: unused imports, dead code, line length

@@ -1,0 +1,72 @@
+/*
+ * Application Styling.
+ *
+ * One stylesheet, no framework. Dark by default because this runs alongside
+ * compositing and editorial software.
+ */
+
+/* ===== TOKENS ===== */
+
+:root {
+    --bg: #16181c;
+    --panel: #1e2127;
+    --border: #2c313a;
+    --text: #e6e8eb;
+    --text-dim: #9aa3af;
+
+    --ok: #4ade80;
+    --degraded: #fbbf24;
+    --blocked: #f87171;
+
+    --radius: 6px;
+    --gap: 16px;
+}
+
+/* ===== BASE ===== */
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+h1 { font-size: 18px; margin: 0; }
+
+/* ===== HEADER AND TABS ===== */
+
+header {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+}
+
+.tabs { display: flex; gap: 4px; flex: 1; }
+
+.tab {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-dim);
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.tab.active { color: var(--text); border-bottom-color: var(--ok); }
+.tab:hover:not(.active) { color: var(--text); }
+
+/* Setup is not a workflow, so it sits apart from the one that is */
+.tab-setup { margin-left: auto; }
+
+/* ===== LAYOUT ===== */
+
+main { padding: var(--gap) 24px; max-width: 1100px; }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.intro p { margin: 0 0 6px; }
+.hint { color: var(--text-dim); }
