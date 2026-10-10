@@ -1,0 +1,20 @@
+# Lint settings, so `ruff check` is one command with no flags to remember.
+#
+# Run before every commit:
+#     ruff check .
+
+line-length = 110
+target-version = "py311"
+
+exclude = ["venv", ".venv", "testmedia", "models"]
+
+[lint]
+select = [
+    "F",     # Unused imports and variables, undefined names
+    "E501",  # Lines past the limit
+    "ARG",   # Unused function arguments
+    "ERA",   # Commented-out code left behind
+]
+
+# Pseudocode steps are the plan for a function, not dead code.
+ignore = ["ERA001"]

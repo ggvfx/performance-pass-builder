@@ -1,0 +1,95 @@
+# --- Python ---
+__pycache__/
+*.py[codz]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Linters
+.ruff_cache/
+.mypy_cache/
+
+# Editors
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# --- Performance Pass Builder Specifics ---
+
+# Media. Source footage, passes and proxies are far past GitHub's file size
+# limits, and removing them from history afterwards is painful. Footage is
+# also often a client's, and this repository is public.
+*.mov
+*.mp4
+*.mxf
+*.mkv
+*.avi
+*.webm
+*.m4v
+*.r3d
+*.braw
+*.wav
+*.aac
+
+# Frame grabs and image exports
+*.jpg
+*.jpeg
+*.png
+*.tif
+*.tiff
+*.exr
+*.dpx
+
+# UI screenshots and icons are the exception — they belong in the repo
+!assets/**
+
+# Raw depth, if it is ever exported
+*.npz
+*.npy
+
+# Job output and working files
+output/
+outputs/
+*_performance/
+.performance-work/
+
+# Model weights. Downloaded on first use, never committed.
+models/
+*.task
+*.onnx
+*.pt
+*.pth
+*.safetensors
+
+# Scratch clips for hand testing. Generated, never committed.
+testmedia/
+tests/media/
+
+# Logs
+logs/
+*.log
+
+# Local settings. settings.example.json is the tracked template; the real one
+# is per machine.
+settings.json
