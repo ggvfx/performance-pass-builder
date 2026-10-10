@@ -235,8 +235,11 @@ needs rethinking.
 - [ ] **4.5** Fal: upload, submit, poll, fetch, with limits checked before
       upload. `model` always sent explicitly, `output_fps` never sent,
       `side_by_side` never set — see CLAUDE.md non-negotiable 14
-- [ ] **4.6** Depth validated against the source on arrival, by frame hash
-      rather than on trust
+- [ ] **4.6** Depth validated on arrival rather than trusted: length and
+      rate through `validate`, and `find_stalled_frames` against the source
+      to catch a model that stalled and returned the same picture twice.
+      Not a hash comparison against the source — depth is not the same
+      picture as the plate, so the two can never match
 - [ ] **4.7** **Supplied depth** — a backend that takes a depth video the
       artist already made elsewhere, so nobody pays twice to put face meshes
       over depth they already have. The same arrival checks, the same

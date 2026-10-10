@@ -14,21 +14,13 @@ again.
 
 ## Phase 2 — cleanup findings
 
-- [ ] **`compare_frames` has no caller, and the reason it was ported does
-      not hold.** minicut used frame hashing to prove rejoined shots matched
-      their mezzanine. This project has no round trip, and depth *cannot* be
-      hash-compared against its source — they are not the same picture. The
-      docstring claiming "the depth stage calls this on arrival" was simply
-      wrong and has been corrected.
-
-      What hashing could usefully do here is spot frames **duplicated within
-      one file**, which is what a hosted model that stalled produces. That is
-      a different function from the one that exists.
-
-      **Three options, and I would like your call:** delete it and keep only
-      `frame_hashes`; reshape it into a duplicate-frame check for 4.6; or
-      leave it as a tested primitive waiting for a use. I have left it alone
-      rather than deleting thirty tested lines on my own judgement.
+- [x] **`compare_frames` reshaped into `find_stalled_frames`** — agreed
+      2026-10-10. It now takes the file *and* its source, and reports runs
+      where the file repeats a frame the source did not. A still shot
+      legitimately repeats frames, so the source is the control; without it
+      the check would fire on exactly the footage people shoot most. Six
+      tests, including a stall at the very end, two separate stalls, and a
+      length mismatch raising rather than reporting.
 - [x] **`CHECK_FRAME_HASHES` removed** — a constant for a check that never
       ran.
 
@@ -49,11 +41,13 @@ again.
 
 ### 2.8 — Sidecar
 
-- [ ] **The `Sidecar` model lives in `sidecar.py`, not `models.py`.** It has
+- [x] **The `Sidecar` model lives in `sidecar.py`, not `models.py`.** It has
       to reference the run settings, and `config.py` imports `models.py` — a
       model naming a settings type there would point the dependency arrow
       backwards. The settings arrive as a free-form dump instead, which is
-      the one place in the project not using a typed model.
+      the one place in the project not using a typed model. **Agreed
+      2026-10-10:** a dict is acceptable for something that is only ever
+      written out, never read back and acted on.
 - [ ] **A job with no deliverables has not passed.** `all([])` is True, so
       "produced nothing" would otherwise read as success.
 - [ ] **Timestamps are UTC with an explicit offset.** These files travel
@@ -64,13 +58,15 @@ again.
 
 ### 2.7 — Validator
 
-- [ ] **Frame hashes are not part of `validate()`.** They cost a full decode
+- [x] **Frame hashes are not part of `validate()`.** They cost a full decode
       of two files and only answer what metadata cannot — a hosted model
-      returning the right length and the wrong picture. `compare_frames` is a
-      separate call the depth stage makes on arrival.
-- [ ] **A duration failure is only reported when the count and rate both
+      returning the right length and the wrong picture. `find_stalled_frames`
+      is a separate call, made when depth arrives.
+- [x] **A duration failure is only reported when the count and rate both
       passed.** Otherwise it is a second symptom of a fault already named,
       and three failures for one problem is how a report stops being read.
+      **Agreed 2026-10-10** — one failure for count, length and duration —
+      and now held in place by a test, which nothing was doing before.
 - [ ] **The validator asks what the encoder *claimed* it did with the
       audio**, rather than inferring from the source. That is what lets an
       absent stream be correct for `OMITTED` and a failure for `COPIED`.

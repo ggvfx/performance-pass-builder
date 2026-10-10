@@ -430,7 +430,12 @@ soundtrack.
   than re-encoded unless the probe said it could not be. **And absent when it
   was asked to be left out** — checked rather than assumed, because for the
   privacy case "we did not add it" and "it is not there" are different claims
-- Frame hashes are how depth is proven to have come back frame for frame
+- Frame hashes catch a **stalled** model. Depth cannot be hash-matched
+  against its source — they are not the same picture — so what is compared is
+  where each file *repeats* a frame. A still shot repeats frames legitimately;
+  depth repeating where the plate did not is the model having stalled, and
+  metadata will never say so because the file is the right length at the right
+  rate
 - Any failure blocks and is shown. Never warn-and-continue
 
 ### 9. Sidecar — `src/core/sidecar.py`

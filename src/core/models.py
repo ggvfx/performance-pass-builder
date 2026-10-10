@@ -22,7 +22,19 @@ Key terms:
 - plate     = the original footage
 - pass      = one generator: depth, faces, later segmentation
 - layer     = what a pass produces, for the stack to composite
-- pass      = a deliverable video exactly as long as the source
+- performance pass = the deliverable, exactly as long as the source
+
+Notes:
+    **This file stays one file.** It is long, and splitting it by stage has
+    come up more than once — pass and composite models into their own
+    modules, general process shapes left here. It does not work: `sidecar.py`
+    has to live in `core` because it references `config`, and it records the
+    stack, the stored depth, the tracking report, the source, the audio
+    handling and the validation. `core` imports nothing of ours, so every one
+    of those types has to be here or the sidecar cannot type its own fields.
+    What is actually free to move is about a fifth of the file, and
+    ARCHITECTURE.md already intends the sidecar to record the selection too,
+    which would take most of that back.
 """
 
 from dataclasses import dataclass

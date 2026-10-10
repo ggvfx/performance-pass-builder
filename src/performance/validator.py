@@ -13,15 +13,17 @@ video, frame for frame, the picture I think it is".
 and whether an audio stream is there. Reading it costs nothing and catches
 every ordinary failure.
 
-There is also per-frame hashing, and it is **not currently called by
-anything**. It came across because minicut used it to prove rejoined shots
-matched their mezzanine, and this project has no equivalent round trip:
-depth cannot be hash-compared against its source, because depth does not
-look like the picture it came from. What it could plausibly do here is spot
-frames *duplicated within* one file — a hosted model that stalled — which is
-a different function from the one that exists. Flagged for review rather
-than deleted, because it is thirty tested lines and the question is which
-shape it should take, not whether hashing is useful.
+**What per-frame hashing checks is stalling.** minicut used it to prove
+rejoined shots matched their mezzanine; this project has no round trip, and
+depth cannot be hash-compared against its source because the two are not the
+same picture. What it catches here is the failure a hosted model actually
+produces — repeating a frame when it stalls — which metadata never will: the
+file is the right length, at the right rate, and holds the same picture
+twice.
+
+A static shot legitimately repeats frames, so a repeat is only suspicious
+when the **source** did not repeat there too. That is why the check takes
+both files.
 
 Notes:
     This module owns the frame-count rule. `FrameReader` counts frames and
@@ -34,7 +36,7 @@ from fractions import Fraction
 from pathlib import Path
 
 from src.core.ffmpeg_tools import MediaToolchain
-from src.core.models import AudioHandling, SourceInfo, ValidationResult
+from src.core.models import AudioHandling, FrameRange, SourceInfo, ValidationResult
 from src.media.probe import SourceProbe
 
 # --- TIMEOUTS ---
@@ -90,8 +92,8 @@ class OutputValidator:
             not a pass either.
 
         Notes:
-            Frame hashes are not included, and nothing else calls them
-            either — see the module docstring.
+            Metadata only. Stalled frames are a separate call because they
+            cost a full decode of two files — see `find_stalled_frames`.
         """
         checks: dict[str, bool] = {}
         failures: list[str] = []
@@ -193,43 +195,68 @@ class OutputValidator:
 
     # --- WHAT THE PIXELS SAY ---
 
-    def compare_frames(self, expected_path: Path, actual_path: Path) -> tuple[bool, str | None]:
+    def find_stalled_frames(self, video_path: Path, source_path: Path) -> list[FrameRange]:
         """
-        Whether two videos are the same picture, frame for frame.
+        Runs where a video repeats a frame but its source does not.
+
+        Args:
+            video_path: The file to check — depth back from a hosted model.
+            source_path: What it was generated from, as the control.
 
         Returns:
-            (True, None) when identical, otherwise (False, a description
-            naming the first frame that differs).
+            One FrameRange per run of repeated frames, inclusive at both
+            ends. Empty when nothing stalled.
+
+        Raises:
+            ValueError: The two files are different lengths, which is a
+                failure `validate` reports rather than this.
 
         Notes:
-            **Nothing calls this yet**, and the use it was ported for does
-            not work: depth cannot be hash-compared against its source,
-            because the two are not the same picture. See the module
-            docstring for what it might become instead.
+            **Both files, because a repeat on its own means nothing.** A
+            locked-off camera on a still subject legitimately produces
+            identical frames, and so does its depth. What is suspicious is
+            depth repeating where the source did not — that is the model
+            stalling rather than the shot being still.
 
-            Costs a full decode of both files, which is why it would not
-            belong in `validate` even once it has a caller.
+            This is what CLAUDE.md non-negotiable 2 means by the depth being
+            checked and never trusted: a stalled model returns a file of the
+            right length, at the right rate, that is wrong in the middle, and
+            no amount of metadata would say so.
+
+            Costs a full decode of both files, which is why it is its own
+            call rather than part of `validate`.
         """
-        expected = self.frame_hashes(expected_path)
-        actual = self.frame_hashes(actual_path)
+        video = self.frame_hashes(video_path)
+        source = self.frame_hashes(source_path)
 
-        if len(expected) != len(actual):
-            difference = len(actual) - len(expected)
-            wording = "more than" if difference > 0 else "fewer than"
-            return False, (
-                f"{actual_path.name} has {len(actual)} frames, {abs(difference)} "
-                f"{wording} {expected_path.name}'s {len(expected)} — frames were "
-                f"dropped or duplicated"
+        if len(video) != len(source):
+            raise ValueError(
+                f"{video_path.name} has {len(video)} frames against "
+                f"{source_path.name}'s {len(source)}; compare lengths with validate()"
             )
 
-        for index, (left, right) in enumerate(zip(expected, actual)):
-            if left != right:
-                return False, (
-                    f"frame {index} of {actual_path.name} does not match "
-                    f"{expected_path.name}"
-                )
+        stalled: list[FrameRange] = []
+        run_start: int | None = None
 
-        return True, None
+        for index in range(1, len(video)):
+            repeated = video[index] == video[index - 1] and source[index] != source[index - 1]
+
+            if repeated and run_start is None:
+                run_start = index
+            elif not repeated and run_start is not None:
+                stalled.append(FrameRange(start_frame=run_start, end_frame=index - 1))
+                run_start = None
+
+        if run_start is not None:
+            stalled.append(FrameRange(start_frame=run_start, end_frame=len(video) - 1))
+
+        if stalled:
+            logging.warning(
+                f"{video_path.name} repeats frames its source does not, at "
+                f"{[(r.start_frame, r.end_frame) for r in stalled]}"
+            )
+
+        return stalled
 
     def frame_hashes(self, video_path: Path) -> list[str]:
         """

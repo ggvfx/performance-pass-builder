@@ -22,6 +22,7 @@ from src.media.frames import FrameReader, FrameWriter
 from src.media.probe import SourceProbe
 from src.performance.validator import (
     CHECK_AUDIO,
+    CHECK_DURATION,
     CHECK_FRAME_COUNT,
     CHECK_FRAME_RATE,
     OutputValidator,
@@ -157,6 +158,31 @@ def test_a_short_output_is_refused_and_says_by_how_much(toolchain, probe, clips,
 
 
 @needs_ffmpeg
+def test_a_wrong_length_is_reported_once_not_three_times(
+    toolchain, probe, clips, validator, tmp_path
+):
+    """
+    Count, length and duration are one fault, and the duration check is
+    derived from the other two — so a short file fails all three and should
+    say so once. Three lines describing one problem reads like three
+    problems.
+    """
+    source = probe.probe(clips["film24"])
+    output = tmp_path / "short.mp4"
+    rate = Fraction(source.fps_numerator, source.fps_denominator)
+
+    with FrameWriter(toolchain, output, source.width, source.height, rate) as writer:
+        for _ in range(source.frame_count - 3):
+            writer.write(np.zeros((source.height, source.width, 3), dtype=np.uint8))
+
+    result = validator.validate(source, output, AudioHandling.NONE)
+
+    print(result.failures)
+    assert result.checks[CHECK_DURATION] is False, "the duration really is wrong"
+    assert len(result.failures) == 1, "and it is the same fault as the frame count"
+
+
+@needs_ffmpeg
 def test_a_wrong_frame_rate_is_refused(toolchain, probe, clips, validator, tmp_path):
     """24000/1001 written as 25 keeps every frame and still drifts."""
     source = probe.probe(clips["ntsc24"])
@@ -208,58 +234,105 @@ def test_a_result_with_no_checks_is_not_a_pass():
 # --- WHAT THE PIXELS SAY ---
 
 
+def write_greys(toolchain, path, levels, source):
+    """
+    A video of flat grey frames, one per level.
+
+    Flat colours on purpose: framemd5 hashes the decoded picture, so two
+    identical flat frames hash identically even through a lossy encoder,
+    which is what makes a repeat detectable at all.
+    """
+    rate = Fraction(source.fps_numerator, source.fps_denominator)
+    with FrameWriter(toolchain, path, source.width, source.height, rate) as writer:
+        for level in levels:
+            writer.write(np.full((source.height, source.width, 3), level, dtype=np.uint8))
+    return path
+
+
 @needs_ffmpeg
-def test_identical_files_hash_identically(toolchain, probe, clips, validator, tmp_path):
+def test_a_file_against_itself_has_stalled_nowhere(toolchain, probe, clips, validator, tmp_path):
+    """
+    The control working. Every repeat in the file is a repeat in the source
+    too, so none of them is the model's fault.
+    """
     source = probe.probe(clips["film24"])
     first = tmp_path / "a.mp4"
     second = tmp_path / "b.mp4"
     copy_through(toolchain, source, first, include_audio=False)
     shutil.copy(first, second)
 
-    assert validator.compare_frames(first, second) == (True, None)
+    assert validator.find_stalled_frames(first, second) == []
 
 
 @needs_ffmpeg
-def test_a_different_picture_is_caught_even_at_the_right_length(
+def test_a_stall_is_caught_even_at_the_right_length(toolchain, probe, clips, validator, tmp_path):
+    """
+    The case metadata cannot reach: a hosted model returning a file of the
+    right length, at the right rate, that holds the same picture three times
+    in the middle. Non-negotiable 2 — the depth is checked, never trusted.
+    """
+    source = probe.probe(clips["film24"])
+    moving = write_greys(toolchain, tmp_path / "source.mp4", range(0, 80, 10), source)
+    stalled = write_greys(toolchain, tmp_path / "depth.mp4", [0, 10, 20, 20, 20, 50, 60, 70], source)
+
+    runs = validator.find_stalled_frames(stalled, moving)
+
+    print([(r.start_frame, r.end_frame) for r in runs])
+    assert len(runs) == 1
+    assert (runs[0].start_frame, runs[0].end_frame) == (3, 4)
+
+
+@needs_ffmpeg
+def test_a_stall_at_the_very_end_is_still_reported(toolchain, probe, clips, validator, tmp_path):
+    """The run never closes, so a loop that only emits on change would miss it."""
+    source = probe.probe(clips["film24"])
+    moving = write_greys(toolchain, tmp_path / "source.mp4", [0, 10, 20, 30, 40], source)
+    stalled = write_greys(toolchain, tmp_path / "depth.mp4", [0, 10, 20, 20, 20], source)
+
+    runs = validator.find_stalled_frames(stalled, moving)
+
+    assert [(r.start_frame, r.end_frame) for r in runs] == [(3, 4)]
+
+
+@needs_ffmpeg
+def test_a_still_shot_is_not_a_stall(toolchain, probe, clips, validator, tmp_path):
+    """
+    Why the check takes two files. A locked-off camera on a still subject
+    legitimately repeats frames, and so does its depth — flagging that would
+    make the check useless on exactly the footage people shoot most.
+    """
+    source = probe.probe(clips["film24"])
+    still = write_greys(toolchain, tmp_path / "source.mp4", [0, 0, 0, 0, 40], source)
+    depth = write_greys(toolchain, tmp_path / "depth.mp4", [0, 0, 0, 0, 40], source)
+
+    assert validator.find_stalled_frames(depth, still) == []
+
+
+@needs_ffmpeg
+def test_two_separate_stalls_are_reported_separately(toolchain, probe, clips, validator, tmp_path):
+    """One range each, so the numbers point at where to look."""
+    source = probe.probe(clips["film24"])
+    moving = write_greys(toolchain, tmp_path / "source.mp4", range(0, 90, 10), source)
+    stalled = write_greys(
+        toolchain, tmp_path / "depth.mp4", [0, 10, 10, 30, 40, 50, 50, 50, 80], source
+    )
+
+    runs = validator.find_stalled_frames(stalled, moving)
+
+    assert [(r.start_frame, r.end_frame) for r in runs] == [(2, 2), (6, 7)]
+
+
+@needs_ffmpeg
+def test_different_lengths_are_not_this_checks_business(
     toolchain, probe, clips, validator, tmp_path
 ):
     """
-    The case metadata cannot reach: a hosted model returning a file of the
-    right length, at the right rate, that is the wrong picture. Non-negotiable
-    2 — the depth is checked on arrival, never trusted.
+    `validate` already reports a length mismatch, and reporting it twice in
+    two shapes would make the second one look like a separate fault.
     """
     source = probe.probe(clips["film24"])
-    original = tmp_path / "original.mp4"
-    copy_through(toolchain, source, original, include_audio=False)
+    full = write_greys(toolchain, tmp_path / "source.mp4", [0, 10, 20, 30], source)
+    short = write_greys(toolchain, tmp_path / "depth.mp4", [0, 10, 20], source)
 
-    flat = tmp_path / "flat.mp4"
-    rate = Fraction(source.fps_numerator, source.fps_denominator)
-    with FrameWriter(toolchain, flat, source.width, source.height, rate) as writer:
-        for _ in range(source.frame_count):
-            writer.write(np.zeros((source.height, source.width, 3), dtype=np.uint8))
-
-    same, failure = validator.compare_frames(original, flat)
-
-    assert same is False
-    assert "frame 0" in failure
-
-
-@needs_ffmpeg
-def test_a_dropped_frame_is_named_by_number(toolchain, probe, clips, validator, tmp_path):
-    """That number points straight at where it went wrong."""
-    source = probe.probe(clips["film24"])
-    full = tmp_path / "full.mp4"
-    copy_through(toolchain, source, full, include_audio=False)
-
-    short = tmp_path / "short.mp4"
-    rate = Fraction(source.fps_numerator, source.fps_denominator)
-    with FrameReader.for_source(toolchain, source) as reader:
-        with FrameWriter(toolchain, short, source.width, source.height, rate) as writer:
-            for index, frame in enumerate(reader):
-                if index != 10:  # one frame quietly missing from the middle
-                    writer.write(frame)
-
-    same, failure = validator.compare_frames(full, short)
-
-    assert same is False
-    assert "1 fewer than" in failure
+    with pytest.raises(ValueError, match="compare lengths with validate"):
+        validator.find_stalled_frames(short, full)

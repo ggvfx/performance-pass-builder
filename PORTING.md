@@ -124,7 +124,7 @@ a `.npz` back.
 
 | Module | Lines | Keep | Dropped, and why | Task |
 |---|---|---|---|---|
-| `validator.py` | 345 | ~35% | Everything about shots. **Take only `_frame_hashes`, `_parse_framemd5` and `_compare_frame_hashes`** — the `framemd5` machinery, which is how you prove a depth video came back frame-for-frame | 2.6 |
+| `validator.py` | 345 | ~35% | Everything about shots. **Take only `_frame_hashes` and `_parse_framemd5`** — the `framemd5` machinery. `_compare_frame_hashes` came across too but its premise did not: depth cannot be hash-matched against its source. Reshaped into `find_stalled_frames`, which compares a file's *repeats* against its source's | 2.6 |
 | `integrity.py` | 169 | 0% | Shot-list arithmetic | — |
 | `reconcile.py`, `scene_detect.py`, `pipeline.py` | 608 | 0% | Shot detection | — |
 
