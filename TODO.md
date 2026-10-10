@@ -121,26 +121,38 @@ been run on a Mac.
 Everything needed to read every frame of a source and write a pass the same
 length with the same audio, proven before any model exists.
 
-- [ ] **2.1** `SourceProbe` and `Timecode` *(port — `media/probe.py`,
+- [x] **2.1** `SourceProbe` and `Timecode` *(port — `media/probe.py`,
       `core/timecode.py`)* — exact rational rate,
       frame count, audio streams, VFR refused with a reason the page can show.
-      cropdetect is not ported
-- [ ] **2.2** Mezzanine *(port — `media/mezzanine.py`)* — all-intra, `verify()` proving it matches the
+      cropdetect is not ported. *Done (47 tests). The round trip walks 20,000
+      frames at six rates, both drop-frame ones included.*
+- [x] **2.2** Mezzanine *(port — `media/mezzanine.py`)* — all-intra, `verify()` proving it matches the
       source frame for frame. Here for exact random access, which is what makes
       re-seeding a track usable; the justification differs from minicut's and
-      is written down in ARCHITECTURE.md
-- [ ] **2.3** Numbered review proxy *(port — `media/proxy.py`)* — built from
-      the mezzanine, with
-      the drawtext and font fallbacks intact
-- [ ] **2.4** Frame streaming — decode to RGB through one pipe, encode from RGB
+      is written down in ARCHITECTURE.md. *Done (14 tests). Every frame of the
+      output is asserted to be a keyframe, with a control test proving the
+      source is not.*
+- [x] **2.3** Numbered review proxy *(port — `media/proxy.py`)* — built from
+      the mezzanine, with the drawtext and font fallbacks intact. *Done (11
+      tests). The burned-in numbers are checked in the pixels, not in the
+      filter string.*
+- [x] **2.4** Frame streaming — decode to RGB through one pipe, encode from RGB
       through another, frame count exact. **New work**: minicut stream-copies
-      shots and never pipes frames in either direction
-- [ ] **2.5** Audio carried through by stream copy, with the fallback for a
+      shots and never pipes frames in either direction. *Done (14 tests). Two
+      pixel formats — RGB, and RGBA for the layer with transparency.*
+- [x] **2.5** Audio carried through by stream copy, with the fallback for a
       codec the container cannot hold — and the option to leave it out, which
-      the validator checks is actually absent rather than merely unrequested
+      the validator checks is actually absent rather than merely unrequested.
+      *Done (22 tests), and grown: four output formats. h264 and h265 in mp4
+      for generation software and compositors; QuickTime RLE and ProRes 4444
+      in .mov for a layer delivered with its alpha intact. RLE is the default
+      of those — measured fifty times smaller than ProRes on line art, and
+      lossless where ProRes is not.*
 - [ ] **2.6** Compositor — stack N layers in the order given, index 0 at the
       bottom, "over", skipping any switched off; write the result through the
-      frame pipe. **Here rather than in Phase 5 because it is frame plumbing**:
+      frame pipe. The one layer with alpha is the mesh, so this is where RGBA
+      gets flattened onto whatever is beneath it.
+      **Here rather than in Phase 5 because it is frame plumbing**:
       it can be proven against generated clips standing in as layers, before
       any pass exists to produce a real one. v1 has no opacity, no blend modes
       and no masks — a layer is a picture and a switch.

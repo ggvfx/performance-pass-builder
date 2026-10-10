@@ -15,15 +15,17 @@ than rewritten — see [PORTING.md](PORTING.md).
 
 **Works now:** the app reports what it needs in three states with a copyable
 fix for each, browses this machine for a source, and lays out the whole
-workflow with every unbuilt control dimmed. Underneath, it probes a source to
-an exact rational frame rate and refuses variable frame rate with a reason,
-converts frames to timecode and back at six rates including both drop-frame
-ones, builds an all-intra mezzanine verified frame for frame, and writes the
-numbered review proxy. 186 tests.
+workflow with every unbuilt control dimmed.
 
-**Next milestone:** the rest of Phase 2 — frames through a pipe, the
-compositor, the validator and the sidecar, so a source goes in and an output
-of exactly its length comes out with its audio.
+Underneath, a source goes in and comes back out: probed to an exact rational
+frame rate with variable frame rate refused and a reason given, copied to an
+all-intra mezzanine verified frame for frame, given a numbered review proxy,
+streamed frame by frame through ffmpeg pipes, and written back at exactly its
+original length with its audio carried untouched — or deliberately left out,
+which is checked rather than assumed. 225 tests.
+
+**Next milestone:** the rest of Phase 2 — the compositor, the validator and
+the sidecar.
 
 Design in [ARCHITECTURE.md](ARCHITECTURE.md), settled decisions in
 [CLAUDE.md](CLAUDE.md), task order in [TODO.md](TODO.md).
@@ -124,7 +126,13 @@ passes feeding the same stack rather than as changes to any of the above.
   depth, and any pass can be delivered on its own.
 - **The audio is the recording.** Stream-copied into the pass, never decoded
   and re-encoded, so lip sync in the generation is driven by exactly what was
-  captured.
+  captured — or left out entirely if you ask, which is verified rather than
+  assumed. Nothing is ever trimmed to make two lengths agree.
+- **Formats that open where they are going.** mp4, h264 or h265, for
+  generation software and compositors. A layer delivered on its own keeps its
+  transparency in a .mov, because no mp4 codec carries alpha reliably —
+  QuickTime RLE by default, which on line art is lossless and a fiftieth the
+  size of ProRes.
 - **Review against burned-in frame numbers.** Browsers seek long-GOP video
   approximately, so the proxy is all-intra with each frame's number in the
   corner — the frame you selected on is a frame you can see. The number never

@@ -43,6 +43,18 @@ from src.core.models import AudioHandling, OutputFormat, SourceInfo
 from src.media.frames import RGB, RGBA, FrameWriter
 
 
+# What each format encodes with. One table rather than a branch per setting,
+# so a writer's `codec`, `crf` and `preset` always describe what it will
+# actually do — an OutputWriter used to inherit those three and then ignore
+# them, which meant a codec passed in was silently dropped.
+ENCODE_SETTINGS = {
+    OutputFormat.H264: ("libx264", H264_CRF, H264_PRESET),
+    OutputFormat.H265: ("libx265", H265_CRF, H265_PRESET),
+    OutputFormat.ALPHA_RLE: (ALPHA_RLE_ENCODER, 0, ""),
+    OutputFormat.PRORES_4444: (PRORES_ENCODER, 0, ""),
+}
+
+
 def plan_audio(source: SourceInfo, include_audio: bool) -> AudioHandling:
     """
     What will happen to the audio, decided before the encode rather than
@@ -95,12 +107,17 @@ class OutputWriter(FrameWriter):
             include_audio: Whether to carry the audio at all.
             output_format: H264 for a normal pass, PRORES_4444 to keep alpha.
         """
+        codec, crf, preset = ENCODE_SETTINGS[output_format]
+
         super().__init__(
             toolchain,
             path,
             source.width,
             source.height,
             Fraction(source.fps_numerator, source.fps_denominator),
+            codec=codec,
+            crf=crf,
+            preset=preset,
             pixel_format=RGBA if output_format.carries_alpha else RGB,
         )
         self.source = source
@@ -146,32 +163,29 @@ class OutputWriter(FrameWriter):
             `+faststart` is an mp4 thing and is left off the .mov.
         """
         if self.output_format is OutputFormat.ALPHA_RLE:
-            return ["-c:v", ALPHA_RLE_ENCODER, "-pix_fmt", ALPHA_RLE_PIXEL_FORMAT]
+            return ["-c:v", self.codec, "-pix_fmt", ALPHA_RLE_PIXEL_FORMAT]
 
         if self.output_format is OutputFormat.PRORES_4444:
             return [
-                "-c:v", PRORES_ENCODER,
+                "-c:v", self.codec,
                 "-profile:v", PRORES_PROFILE,
                 "-pix_fmt", PRORES_PIXEL_FORMAT,
             ]
 
-        if self.output_format is OutputFormat.H265:
-            return [
-                "-c:v", "libx265",
-                "-preset", H265_PRESET,
-                "-crf", str(H265_CRF),
-                "-tag:v", H265_TAG,
-                "-pix_fmt", "yuv420p",
-                "-movflags", "+faststart",
-            ]
-
-        return [
-            "-c:v", "libx264",
-            "-preset", H264_PRESET,
-            "-crf", str(H264_CRF),
+        mp4 = [
+            "-c:v", self.codec,
+            "-preset", self.preset,
+            "-crf", str(self.crf),
             "-pix_fmt", "yuv420p",
             "-movflags", "+faststart",
         ]
+
+        if self.output_format is OutputFormat.H265:
+            # Not cosmetic: without hvc1, QuickTime and several NLEs refuse
+            # the file outright.
+            return [*mp4, "-tag:v", H265_TAG]
+
+        return mp4
 
     def arguments(self) -> list[str]:
         """

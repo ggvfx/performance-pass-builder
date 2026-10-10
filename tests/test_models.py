@@ -19,6 +19,7 @@ from src.core.models import (
     Layer,
     LayerSource,
     LayerStack,
+    OutputFormat,
     OutputRequest,
     DepthBackendName,
     DepthModel,
@@ -356,6 +357,49 @@ def test_audio_can_be_discarded():
     )
 
     assert request.include_audio is False
+
+
+def test_the_filename_carries_the_format_s_own_suffix():
+    """
+    Derived rather than typed: a .mp4 holding ProRes, or a .mov holding h264,
+    is a file something downstream refuses to open.
+    """
+    stack = a_stack(LayerSource.DEPTH)
+
+    assert OutputRequest(stack=stack, name="take_01_depth").filename == "take_01_depth.mp4"
+    assert (
+        OutputRequest(
+            stack=a_stack(LayerSource.FACE_MESH),
+            name="take_01_faces",
+            output_format=OutputFormat.ALPHA_RLE,
+        ).filename
+        == "take_01_faces.mov"
+    )
+
+
+def test_the_mesh_alone_cannot_be_written_to_a_format_without_alpha():
+    """
+    The silent one. An encoder without alpha does not refuse a transparent
+    frame — it flattens it onto black and says nothing, so the artist gets a
+    mesh they cannot composite and no indication why.
+    """
+    with pytest.raises(ValidationError, match="carries alpha"):
+        OutputRequest(
+            stack=a_stack(LayerSource.FACE_MESH),
+            name="take_01_faces",
+            output_format=OutputFormat.H264,
+        )
+
+
+def test_the_mesh_over_something_opaque_is_fine_in_an_mp4():
+    """Composited over depth there is no transparency left to lose."""
+    request = OutputRequest(
+        stack=a_stack(LayerSource.DEPTH, LayerSource.FACE_MESH),
+        name="take_01_composite",
+        output_format=OutputFormat.H264,
+    )
+
+    assert request.filename == "take_01_composite.mp4"
 
 
 def test_an_output_has_to_be_called_something():

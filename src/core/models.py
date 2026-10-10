@@ -543,7 +543,42 @@ class OutputRequest(BaseModel):
 
     stack: LayerStack
     include_audio: bool = True
-    name: str = Field(min_length=1)  # The deliverable's file stem
+    output_format: OutputFormat = OutputFormat.H264
+
+    name: str = Field(min_length=1)  # The deliverable's file stem, no suffix
+
+    @computed_field
+    @property
+    def filename(self) -> str:
+        """
+        The stem plus the suffix the format requires.
+
+        Notes:
+            Derived rather than typed, because the two have to agree: a .mp4
+            holding ProRes, or a .mov holding h264, is a file that something
+            downstream will refuse to open.
+        """
+        return f"{self.name}{self.output_format.suffix}"
+
+    @model_validator(mode="after")
+    def check_alpha_has_somewhere_to_go(self) -> "OutputRequest":
+        """
+        Notes:
+            The face mesh is the only layer with alpha. Asking for it alone
+            in an mp4 would deliver it burned onto black, silently — the
+            transparency is simply dropped by the encoder rather than
+            refused, so nothing downstream would report it.
+        """
+        enabled = self.stack.enabled_sources
+        alpha_only = enabled == [LayerSource.FACE_MESH]
+
+        if alpha_only and not self.output_format.carries_alpha:
+            raise ValueError(
+                "the face mesh on its own needs a format that carries alpha "
+                f"({OutputFormat.ALPHA_RLE.value} or {OutputFormat.PRORES_4444.value}); "
+                f"{self.output_format.value} would flatten it onto black"
+            )
+        return self
 
 
 # =====================================================================

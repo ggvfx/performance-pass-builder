@@ -23,7 +23,6 @@ from pathlib import Path
 from src.core.config import (
     DISK_COPIES_PER_JOB,
     GB_PER_MINUTE_1080P24,
-    MIN_FREE_GB,
     MP4_AUDIO_CODECS,
     OUTPUT_DIR_SUFFIX,
     REFERENCE_PIXELS,
@@ -363,8 +362,3 @@ class SourceProbe:
         rate_scale = float(rate) / REFERENCE_RATE
 
         return GB_PER_MINUTE_1080P24 * minutes * pixel_scale * rate_scale * DISK_COPIES_PER_JOB
-
-    @staticmethod
-    def is_space_tight(free_gb: float | None) -> bool:
-        """Whether the free space is below the comfort threshold, for the panel."""
-        return free_gb is not None and free_gb < MIN_FREE_GB
