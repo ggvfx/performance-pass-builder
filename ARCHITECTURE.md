@@ -449,13 +449,13 @@ the restructure.
 | `src/core/config.py` | Every constant, every default, per-pass settings, saved `Settings` |
 | `src/core/models.py` | Every shared data model |
 | `src/core/utils.py` | Helpers needed in more than one module |
-| `src/core/ffmpeg_tools.py` | `MediaToolchain` — the only place a subprocess runs, including the frame pipes |
+| `src/core/ffmpeg_tools.py` | `MediaToolchain` and the pipes — the only place a subprocess runs, and the only place one is closed, killed or reaped |
 | `src/core/timecode.py` | `Timecode` — the only place frames become time |
 | `src/core/environment.py` | `EnvironmentChecker` — the Setup panel's rows |
 | `src/core/sidecar.py` | Sidecar write, and the environment it records |
 | `src/core/templates.py` | Per-platform install instructions — data, not behaviour |
 | `src/media/probe.py` | `SourceProbe` |
-| `src/media/frames.py` | Reading frames from, and writing frames to, an ffmpeg pipe |
+| `src/media/frames.py` | Frames to and from a pipe: the arguments, the byte arithmetic, the numpy array. Never a process |
 | `src/media/mezzanine.py` | `MezzanineBuilder` — all-intra, for exact random access |
 | `src/media/proxy.py` | `ProxyBuilder` |
 | `src/media/workspace.py` | The working folder's naming and lifecycle |
@@ -518,6 +518,13 @@ ui/                   may import everything below it
 Nothing imports upward. **`composite/` may not import `performance/`** — the
 compositor taking a dependency on a pass is the exact mistake this structure
 exists to prevent.
+
+**And nothing outside `core/ffmpeg_tools.py` touches a subprocess.** Not the
+frame pipes, not their closing or reaping. The reason is swappability rather
+than tidiness: this tool may end up inside something larger that does not use
+ffmpeg, and then that module is the one seam to replace. `media/` builds
+arguments and handles bytes; `grep -r Popen src/media/` returns nothing, and
+that is the check.
 
 **A consequence worth stating**, because it decided where two things live: a
 constant that is part of a data contract rather than a setting lives in
