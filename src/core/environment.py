@@ -434,7 +434,7 @@ class EnvironmentChecker:
 
     def check_opencv(self) -> Check:
         """
-        OpenCV, which draws the mesh onto the plate.
+        OpenCV, which renders the face mesh layer.
 
         Blocking for the same reason as MediaPipe: nothing else draws.
         """

@@ -137,15 +137,22 @@ length with the same audio, proven before any model exists.
       shots and never pipes frames in either direction
 - [ ] **2.5** Audio carried through by stream copy, with the fallback for a
       codec the container cannot hold
-- [ ] **2.6** Validator *(port — `splitter/validator.py`, ~35%)* — frame count, rate, duration, audio.
+- [ ] **2.6** Compositor — stack N layers in order, index 0 at the bottom,
+      "over", skipping any that are switched off; write the result through the
+      frame pipe. **Here rather than in Phase 5 because it is frame plumbing**:
+      it can be proven against generated clips standing in as layers, before
+      any pass exists to produce a real one. v1 has no opacity, no blend modes
+      and no masks — a layer is a picture and a switch
+- [ ] **2.7** Validator *(port — `splitter/validator.py`, ~35%)* — frame count, rate, duration, audio.
       Only the `framemd5` frame-hash machinery comes across; every shot-list
       check stays behind. Blocks
-- [ ] **2.7** Sidecar *(port — `core/sidecar.py`)*
-- [ ] **2.8** Working folder *(port — `media/workspace.py`)* — `.performance-work/`, reclaimable space
+- [ ] **2.8** Sidecar *(port — `core/sidecar.py`)*
+- [ ] **2.9** Working folder *(port — `media/workspace.py`)* — `.performance-work/`, reclaimable space
       reported and cleared on request, never behind the user's back
 
-**Phase done when:** a source goes in and a pass of exactly its length comes
-out with its audio, verified by the validator rather than by eye.
+**Phase done when:** a source goes in and an output of exactly its length
+comes out with its audio, verified by the validator rather than by eye — and
+two stand-in layers composite into one.
 
 ---
 
@@ -165,11 +172,16 @@ Local and free, so this is where the iterating happens.
       rather than a second mechanism
 - [ ] **3.7** Smoothing, resetting across a gap and across a seed boundary
       rather than through either
-- [ ] **3.8** Drawing the mesh, with widths scaled to the picture
+- [ ] **3.8** Rendering the mesh to **its own layer, with alpha** — not drawn
+      onto anything. Widths scaled to the picture. All faces in one layer, with
+      per-face visibility, so a three-person shot does not fill the stack. This
+      is what lets the mesh be output alone, reordered, or left out of a
+      composite without re-tracking
 - [ ] **3.9** `landmarks.json` and the per-face tracking report, including
       where each face's seeds are and which frames came from which
 
-**Decision point at 3.8:** draw meshes over the source itself and judge on
+**Decision point at 3.8:** composite the mesh layer over the source itself
+and judge on
 real footage — two people, a face crossing another, a turn to profile, a wipe —
 before depth is involved. That is also where re-seeding either proves itself or
 needs rethinking.
@@ -203,30 +215,40 @@ needs rethinking.
       real shot
 - [ ] **4.8** Depth cached and reused, keyed to the source and the depth
       settings. Changing a window or a colormap must never call Fal again
-- [ ] **4.9** Plate — window to a `near`/`far` pair, hard clip, then colormap.
-      The only module that colormaps, and the seam `mesh.py` sits on
+- [ ] **4.9** Rendering the depth layer — window to a `near`/`far` pair, hard
+      clip, then colour map, from the stored field. The only module that
+      colormaps. Local and instant, so changing either never calls the model
 
 ---
 
-## Phase 5 — The Performance Tab
+## Phase 5 — The Workflow
 
-- [ ] **5.1** Selection on the proxy *(port — `player.js`)*: draw, label,
-      remove, step between faces, and add a seed to a face at the frame on
-      screen. The timeline shows each face's coverage, its seeds and its gaps,
-      so where a re-seed is needed is visible rather than guessed
-- [ ] **5.2** Depth window controls — `near` and `far` over the depth's own
-      histogram, with a live preview off the stored field. Local and instant;
-      no call, no wait, no charge
-- [ ] **5.3** `prepare()` and `run()` routes *(port — `routes/splitter.py`
-      shape, `source.js`)*
-- [ ] **5.4** Results: both passes playable in place, the tracking report,
-      where the files went
-- [ ] **5.5** The warning before footage is uploaded, and the raw-depth
+A step strip — Source, Depth, Faces, Composite — where each step holds its own
+settings, its own process button and its own result. **Every step is reachable
+from the start** and says what state it is in rather than being locked: someone
+opening the app for the first time should be able to see the shape of the job.
+
+- [ ] **5.1** The step strip *(port — `tabs.js` pattern)*: four steps, each
+      showing not run / processing / done, all clickable, each saying in place
+      what it still needs
+- [ ] **5.2** Source step: inspect, prepare, and the facts *(port —
+      `source.js`)*
+- [ ] **5.3** Depth step: settings, a process button, the result playing in
+      place, and the window and colour map underneath, re-rendering live
+- [ ] **5.4** Faces step *(port — `player.js`)*: draw, label, remove, add a
+      seed at the frame on screen, step between faces, per-face visibility.
+      The timeline shows each face's coverage, its seeds and its gaps, so where
+      a re-seed is needed is visible rather than guessed
+- [ ] **5.5** Composite step: the stack in order with a switch per layer, and
+      the output button. Outputting one pass is this with one layer on
+- [ ] **5.6** Routes behind all of it *(port — `routes/splitter.py` shape)*:
+      prepare, run one pass, composite, output
+- [ ] **5.7** The warning before footage is uploaded, and the raw-depth
       download offered with its cost stated
-- [ ] **5.6** Work folder panel *(port — `work.js`)*
+- [ ] **5.8** Work folder panel *(port — `work.js`)*
 
 **Phase done when:** an artist with a Fal key can produce a pass end to end
-from the browser, on Windows and on a Mac.
+from the browser, on Windows and on a Mac, choosing which passes to run.
 
 ---
 
@@ -243,17 +265,21 @@ Listed so the shape is known. Broken down when reached.
 
 ---
 
-## Phase 7 — Depth Manipulation (shape only)
+## Phase 7 — Depth Editing (shape only)
 
 Named so the plate seam has a stated purpose. **Not designed.** Broken down
 when reached, and not before Phase 5 is finished.
 
-- A second utility in `src/depth/`, its own tab over the same foundations
-- Combining two or more depth passes, with an offset and scale per layer to
-  align them. Alignment has to be manual: this model's depth is relative and
+- **Not a separate utility or tab any more.** Combining depth passes is an
+  edit on the Depth step, beside the window and the colour map, because that
+  is where someone adjusting depth is already looking
+- Loading a second depth pass and aligning it, with an offset and scale per
+  pass. Alignment has to be manual: this model's depth is relative and
   normalised per clip, so there is no shared metric to align by — `min_depth`
-  and `max_depth` from each pass are the starting numbers
+  and `max_depth` are the starting numbers
 - A soft knee on the window, as an alternative to the hard clip
+- The compositor gains whatever this needs and no more. Opacity and blend
+  modes are likely; masks wait for something to generate them
 
 ---
 

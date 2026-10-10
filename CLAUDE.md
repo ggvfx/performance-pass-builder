@@ -128,12 +128,22 @@ Settled decisions. Do not revisit them without asking.
     or cheaply invertible, so it destroys the ability to window the range at
     all. Everything upstream of the colormap is single-channel.
 
-13. **The plate seam.** Whatever produces the picture the mesh is drawn on is a
-    separate stage from the drawing. Today it is window-then-colormap; later it
-    is a composite of depth, plate and flat regions. `mesh.py` and `encode.py`
-    consume a frame of picture and never learn what made it. This is the one
-    thing v1 builds for a feature it does not have, because retrofitting it
-    means touching drawing, encoding and validation at once.
+13. **Passes produce layers; a stack combines them.** Each pass — depth,
+    faces, later segmentation — owns its settings, its processing, its cache
+    and its preview, and produces a picture. The compositor orders those
+    layers and knows nothing about what made any of them, and no pass knows
+    what consumes it. `composite/` may not import `performance/`.
+
+    In v1 a layer is a pass and an on/off switch, composited "over", index 0
+    at the bottom. Opacity, blend modes and masks fit the same model later and
+    are not built now. **Outputting a single pass is the stack with one layer
+    enabled** — there is no second export path, which is the main reason the
+    stack earns its place in v1.
+
+    An earlier draft called this the plate seam and implemented it as one
+    function signature. The stack is the same principle done properly, and it
+    is why the mesh renders to its own transparent layer rather than being
+    drawn onto depth.
 
 14. **Three of Fal's parameters are silent traps, and the code treats them as
     such.** `model` is **always sent explicitly** — Fal defaults to `VDA-Large`,
@@ -144,57 +154,64 @@ Settled decisions. Do not revisit them without asking.
 
 ---
 
-## Pipeline
+## How a job goes
 
-Two entry points, because a person selects the faces in between.
+Not one pipeline with a button at the end. A source is prepared once, each
+pass is run when the artist wants it, and the stack combines whichever ones
+they turned on.
 
-### `prepare()`
+### Prepare — shared, and not a pass
 
 1. **Probe** — ffprobe: exact rational frame rate, frame count, resolution,
-   codec, audio streams. Refuse VFR.
-2. **Mezzanine** — all-intra, verified frame for frame against the source.
-   Here for exact random access, not for stream copying: re-seeding a track
-   means arbitrary seeks, and long-GOP h264 gives you fast-and-wrong or
-   exact-and-slow.
-3. **Proxy** — all-intra h264, numbered, small enough to scrub, built from the
+   codec, audio streams. Refuse VFR, with a reason the page can show.
+2. **Mezzanine** — all-intra, verified frame for frame. Here for exact random
+   access, which is what makes re-seeding a track usable; long-GOP h264 gives
+   you fast-and-wrong or exact-and-slow.
+3. **Proxy** — all-intra h264, numbered, small enough to scrub, from the
    mezzanine.
-4. **Depth** — full frame, from the configured backend. Validated against the
-   source, converted to the stored scalar format, and cached.
 
-### Select (in the browser)
+### The depth pass
 
-The person scrubs the proxy, stops on a frame where a face is clear, and draws
-a box around it. Repeat for every face wanted, on whichever frame suits each —
-and **again on the same face wherever its track needs re-seeding**, past a turn
-away from camera or a wipe. A face is a label and a list of seeds.
+4. **Generate** — ask the backend, validate against the source on arrival,
+   convert to the stored scalar field, cache it.
+5. **Edit** — window and colour map, applied when the layer is rendered. Local,
+   instant, and never another call.
 
-### `run()`
+### The faces pass
 
-5. **Track** — one tracker per selected face, run in segments between that
-   face's seeds: backward from the first to frame 0, forward from each to the
-   next. Every frame records which seed produced it, or that it is a gap.
-6. **Smooth** — damp landmark jitter, which a generation model would otherwise
-   turn into shimmer. Resets across a gap and across a seed boundary.
-7. **Plate** — the stored depth, windowed to the range the user chose, then
-   colormapped. The picture the mesh goes on.
-8. **Draw** — each face's mesh over the plate.
-9. **Encode** — the pass, with the source audio copied in.
-10. **Validate** — frame count, frame rate, duration, audio present. Blocks.
-11. **Sidecar** — what was produced, from what, by which versions.
+6. **Select** — boxes on the proxy. A face is a label and a **list** of seeds;
+   re-seeding past a turn away or a wipe is the normal way to work.
+7. **Track** — one MediaPipe tracker per face, in segments between that face's
+   seeds. Every frame records which seed produced it, or that it is a gap.
+8. **Smooth** — damp jitter a generation model would render as shimmer.
+   Resets across a gap and across a seed boundary.
+9. **Render** — the mesh to **its own transparent layer**, not onto depth, so
+   it can be output alone, reordered, or left out without re-tracking.
 
----
+### Finish
+
+10. **Composite** — the layers that are switched on, in order, index 0 at the
+    bottom.
+11. **Output** — the composite, or any single pass, with the source audio
+    copied in.
+12. **Validate** — frame count, frame rate, duration, audio present. Blocks.
+13. **Sidecar** — what was produced, from what, by which versions.
 
 ## Output
 
-One folder per job. Deliverables only:
+One folder per job. Whatever the artist asked for, and nothing else:
 
 ```
 <source>_performance/
-    <source>_depth.mp4             full-frame depth, source audio
-    <source>_depth_mesh.mp4        depth with meshes, source audio — the pass
+    <source>_composite.mp4         the stack as composited, source audio
+    <source>_depth.mp4             the depth layer alone, if asked for
+    <source>_faces.mov             the face layer alone, with alpha, if asked for
     <source>_landmarks.json        per face, per frame, normalised
     <source>_performance.json      sidecar
 ```
+
+A single-pass output is the stack with one layer enabled, so these come from
+one code path rather than an export mode each.
 
 Working files live in `.performance-work/` inside it — the mezzanine, the
 proxy, the stored depth field, and the result review proxy. The folder is kept

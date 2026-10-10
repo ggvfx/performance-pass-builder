@@ -137,25 +137,25 @@ a `.npz` back.
 | `browse.py` | 110 | ~100% | Nothing | 1.7 |
 | `routes/files.py` | 37 | ~100% | Nothing | 1.7 |
 | `routes/setup.py` | 236 | ~50% | Model-backend configuration. The environment and settings routes come across | 1.6 |
-| `routes/splitter.py` | 223 | ~30% | Route *shape* only — inspect, prepare, run | 5.3 |
+| `routes/splitter.py` | 223 | ~30% | Route *shape* only. Here it becomes prepare, run one pass, composite, output | 5.6 |
 | `routes/identifier.py` | 424 | 0% | — | — |
 
 ### `src/ui/static/`
 
 | File | Lines | Keep | Dropped, and why | Task |
 |---|---|---|---|---|
-| `styles.css` | 731 | ~85% | The identifier's table and column styles. Card layout, three-state panel, transport and timeline all come across | 1.4 → 5.1 |
-| `index.html` | 565 | ~30% | Both old tabs' markup. The header, tab strip, card and status-strip *patterns* are the reference | 1.4 → 5.1 |
-| `player.js` | 307 | ~70% | Boundary markers and `goToCut`. **Keep the frame maths exactly** — seek to the middle of a frame's duration, because `currentTime` after a seek does not land on a boundary and naive rounding drifts at 23.976. Markers become face seeds | 5.1 |
+| `styles.css` | 731 | ~85% | The identifier's table and column styles. Card layout, three-state panel, transport and timeline all come across | 1.4 → 5.4 |
+| `index.html` | 565 | ~30% | Both old tabs' markup. The header, tab strip, card and status-strip *patterns* are the reference | 1.4 → 5.4 |
+| `player.js` | 307 | ~70% | Boundary markers and `goToCut`. **Keep the frame maths exactly** — seek to the middle of a frame's duration, because `currentTime` after a seek does not land on a boundary and naive rounding drifts at 23.976. Markers become face seeds | 5.4 |
 | `setup.js` | 249 | ~50% | Split across two tasks: the environment half at 1.6, the depth-backend half at 4.4 | 1.6 → 4.4 |
 | `environment.js` | 213 | ~90% | Nothing structural | 1.6 |
-| `source.js` | 201 | ~60% | Shot estimation display | 5.3 |
+| `source.js` | 201 | ~60% | Shot estimation display | 5.2 |
 | `picker.js` | 114 | ~100% | Nothing | 1.7 |
-| `work.js` | 99 | ~90% | Nothing structural | 5.6 |
+| `work.js` | 99 | ~90% | Nothing structural | 5.8 |
 | `main.js` | 88 | **done** | Already in this repo in miniature. Grows as listeners are added | 1.2 ✔ |
 | `tabs.js` | 40 | ~100% | Already in this repo; `whenShown` is still to come | 1.2 ✔ |
 | `state.js` | 37 | ~100% | Already in this repo as the empty shape | 1.2 ✔ |
-| `ui.js` | 28 | ~100% | Nothing, but deferred: its only callers are `source.js` and the run flow, so porting it at 1.4 left an unreferenced module | 5.3 |
+| `ui.js` | 28 | ~100% | Nothing, but deferred: its only callers are `source.js` and the run flow, so porting it at 1.4 left an unreferenced module | 5.2 |
 | `identify.js`, `columns.js`, `splitting.js` | 965 | 0% | — | — |
 
 ---
@@ -180,9 +180,10 @@ provenance line, and covered by a test that runs.
 - [ ] **2.8** `workspace.py`
 - [ ] **4.3** `adapter.py` and `transport.py` shapes
 - [ ] **4.4** `availability.py`, the depth-backend half of `setup.js`
-- [ ] **5.1** `player.js`, the transport and timeline CSS
-- [ ] **5.3** `routes/splitter.py` shape, `source.js`, `ui.js`
-- [ ] **5.6** `work.js`
+- [ ] **5.2** `source.js`, `ui.js`
+- [ ] **5.4** `player.js`, the transport and timeline CSS
+- [ ] **5.6** `routes/splitter.py` shape
+- [ ] **5.8** `work.js`
 
 When the last box is ticked: confirm every ported module has its provenance
 line, check THIRD-PARTY.md records the port, and delete this file.

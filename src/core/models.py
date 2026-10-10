@@ -19,7 +19,9 @@ Key terms:
 - seed      = a box drawn on a chosen frame, from which tracking runs
 - face      = one selected person: a label and a list of seeds
 - segment   = the run of frames one seed is responsible for
-- plate     = the picture the mesh is drawn on: depth, windowed, colormapped
+- plate     = the original footage
+- pass      = one generator: depth, faces, later segmentation
+- layer     = what a pass produces, for the stack to composite
 - pass      = a deliverable video exactly as long as the source
 """
 
@@ -221,8 +223,9 @@ class DepthColormap(str, Enum):
     """
     How a depth picture is coloured. Fal's own list, nothing invented here.
 
-    Applied only when a plate is rendered, never to what is stored: the others
-    are not invertible, so colouring early would make windowing impossible.
+    Applied when the depth layer is rendered, never to what is stored: the
+    others are not invertible, so colouring early would make windowing
+    impossible.
     """
 
     GRAYSCALE = "grayscale"
@@ -282,7 +285,7 @@ class StoredDepth(BaseModel):
     frame_count: int = Field(gt=0)
 
     # The colormapped video that came back from the same call. Free, and the
-    # instant preview before any window is chosen. Never the source of a plate.
+    # instant preview before a window is chosen. Never the source of a layer.
     preview_path: Path | None = None
 
     @model_validator(mode="after")
@@ -311,7 +314,7 @@ class DepthWindow(BaseModel):
         `min_depth` and `max_depth` meant.
 
         **One window for the whole clip** — per-frame would make the depth
-        pump. Outside it is clipped. See ARCHITECTURE.md stage 8.
+        pump. Outside it is clipped. See ARCHITECTURE.md, the depth pass.
     """
 
     near: float = Field(ge=0.0, le=1.0)  # Maps to the output's white
