@@ -491,10 +491,15 @@ class EnvironmentChecker:
         """
         Whether a Fal key is in the environment.
 
-        **Blocking today**, because hosted depth is the only depth there is:
-        local depth arrives in Phase 6, and until it does a machine without a
-        key cannot produce a pass at all. It becomes degraded the day there is
-        a second backend to fall back to.
+        **Degraded, not blocking.** A missing key costs hosted depth and
+        nothing else: face tracking runs locally and free, a mesh layer is a
+        deliverable on its own, and depth made elsewhere can be supplied. An
+        environment check says what this machine can do, and "cannot run" is
+        not true of a machine that can still produce a pass.
+
+        What a missing key must block is the depth *operation*, at the point
+        it is asked for, where the message can be about the thing being
+        attempted. That gate is not this check's job.
 
         Notes:
             Only whether the variable is set, never what is in it, and the
@@ -504,10 +509,11 @@ class EnvironmentChecker:
             return Check(
                 key="fal_key",
                 label="Fal key",
-                status=BLOCKED,
+                status=DEGRADED,
                 detail=(
-                    f"{config.FAL_KEY_VARIABLE} is not set. Hosted depth is the only depth "
-                    f"there is until local depth is built, so a pass cannot be produced."
+                    f"{config.FAL_KEY_VARIABLE} is not set, so hosted depth is unavailable. "
+                    f"Face tracking runs locally and needs no key, and depth made elsewhere "
+                    f"can be supplied."
                 ),
                 fixes=fal_key_fixes(),
             )

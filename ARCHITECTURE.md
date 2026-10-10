@@ -173,11 +173,16 @@ reasonable future convenience and is deliberately not built now: a silent
 one-frame correction is the kind of help that produces a pass which drifts and
 a reason nobody can find.
 
-It also changes a dependency: a missing `FAL_KEY` stops being blocking the
-day this exists, because a machine with no key can still build a pass from
-supplied depth. `check_fal_key` says it becomes degraded once there is a
-second source — this is that second source, and it arrives before local
-depth does.
+It is also one of two reasons a missing `FAL_KEY` is **degraded rather than
+blocking**. A machine with no key can build a pass from supplied depth — and
+it does not have to wait for this to be built, because face tracking is local
+and free and a mesh layer is a deliverable on its own. An environment check
+reports what a machine can do, and "cannot run" was never true of a machine
+that can still produce a pass.
+
+What a missing key must stop is the depth *operation*, refused where it is
+asked for, so the message is about the thing being attempted rather than
+about the app. That gate belongs to the depth backend, not to the panel.
 
 #### Fal's schema, read from its API page
 

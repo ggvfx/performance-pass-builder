@@ -89,6 +89,7 @@ models/
 testmedia/
 tests/media/*
 !tests/media/README.md
+!tests/media/WANTED.md
 
 # Logs
 logs/

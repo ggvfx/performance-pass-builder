@@ -243,7 +243,11 @@ needs rethinking.
       ask about an LLM, these ask about a depth model and its licence
 - [ ] **4.5** Fal: upload, submit, poll, fetch, with limits checked before
       upload. `model` always sent explicitly, `output_fps` never sent,
-      `side_by_side` never set — see CLAUDE.md non-negotiable 14
+      `side_by_side` never set — see CLAUDE.md non-negotiable 14.
+      **The key is checked here**, at the point depth is asked for, and
+      refused here. A missing key degrades the app rather than blocking it —
+      face tracking is local and free — so the environment panel must not be
+      the thing that stops a depth run
 - [ ] **4.6** Depth validated on arrival rather than trusted: length and
       rate through `validate`, and `find_stalled_frames` against the source
       to catch a model that stalled and returned the same picture twice.

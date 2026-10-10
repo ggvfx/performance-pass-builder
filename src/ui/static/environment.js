@@ -18,6 +18,10 @@
 
 import { showTab } from "./tabs.js";
 
+// The three states, said the same way everywhere they are said. The banner
+// adds a count to these rather than wording the states again: two places
+// describing one state in two vocabularies is how "Ready, with limits" and
+// "Ready, with limitations" ended up on screen at the same time.
 const WORDING = {
     ok: "Ready",
     degraded: "Ready, with limitations",
@@ -68,7 +72,7 @@ function renderHealth(report) {
     strip.replaceChildren();
 
     if (report.overall === "ok") {
-        strip.append(statusText("Ready — everything this app needs is installed"));
+        strip.append(statusText(`${WORDING.ok} — everything this app needs is installed`));
         strip.hidden = false;
         return;
     }
@@ -80,8 +84,8 @@ function renderHealth(report) {
     // about a problem is also the place it looks unfinished
     const subject = one ? "1 thing" : `${problems.length} things`;
     const wording = report.overall === "blocked"
-        ? `Not ready — ${subject} ${one ? "needs" : "need"} attention`
-        : `Ready, with limits — ${subject} ${one ? "is" : "are"} not set up`;
+        ? `${WORDING.blocked} — ${subject} ${one ? "needs" : "need"} attention`
+        : `${WORDING.degraded} — ${subject} ${one ? "is" : "are"} not set up`;
 
     const link = document.createElement("button");
     link.className = "inline-button";

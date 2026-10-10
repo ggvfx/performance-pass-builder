@@ -13,6 +13,47 @@ again.
 
 ---
 
+## Phase 3 — cleanup findings, pre-phase
+
+- [ ] **A missing `FAL_KEY` no longer blocks the whole app.** Found by
+      running it: this machine reported `blocked` with every other check
+      green. The reasoning in `check_fal_key` was that hosted depth is the
+      only depth there is — but face tracking is local and free, a mesh layer
+      is a deliverable on its own, and supplied depth arrives at 4.7. An
+      environment check reports what a machine *can* do, and "cannot run" was
+      not true. Now `degraded`, still carrying the fix. The real gate — refuse
+      a depth run without a key, where it is asked for — is written into 4.5.
+
+      **This is a user-facing behaviour change made during a cleanup pass**,
+      so it is the one here most worth overturning if you disagree.
+- [ ] **The three environment states are now worded in one place.** The
+      banner and the Setup panel each had their own vocabulary and disagreed
+      on all three, so the same machine read "Ready, with limits" on one tab
+      and "Ready, with limitations" on the other. The banner now appends its
+      count to the shared wording.
+- [ ] **README was telling people `setup.bat` had not arrived yet.** It was
+      built at 1.9 and ticked. The install section now leads with it, and
+      says plainly that `setup.command` has never been run on a Mac.
+- [ ] **`models.py` stays one file, and the reason is now in the file.** Not
+      the foundation-file exemption — `sidecar.py` must live in `core` and
+      references almost every model, so `core` cannot give them up. Written
+      down so the split stops being re-proposed.
+
+**Reviewed and left alone**, so the next pass does not re-examine them:
+
+- `environment.py` at 545 lines is over the flag threshold and stays. It is
+  ten checks and three small models, with the install copy already separated
+  into `templates.py`. Splitting it would only move the checks away from the
+  thing that reports them.
+- The six `NotImplementedError` stubs in `models.py` are the Phase 3 tracking
+  methods, written as pseudocode on purpose. They are the next thing built,
+  not dead code.
+- `DepthColormap` has no caller. It is Fal's own list and a documented
+  contract for 4.10, so it is early rather than dead.
+- Dependency direction holds in every direction: `core` imports nothing of
+  ours, `media` imports neither `composite` nor `performance`, and nothing
+  outside `src/ui/` imports `src/ui/`.
+
 ## Phase 2 — cleanup findings
 
 - [x] **`compare_frames` reshaped into `find_stalled_frames`** — agreed

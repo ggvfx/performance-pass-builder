@@ -174,17 +174,32 @@ def test_mediapipe_and_opencv_are_found():
         assert check.detail != "unknown version"
 
 
-def test_a_missing_fal_key_blocks_while_hosted_depth_is_the_only_depth(monkeypatch):
+def test_a_missing_fal_key_degrades_rather_than_blocks(monkeypatch):
     """
-    Blocked rather than degraded on purpose, and only until Phase 6: with no
-    local backend to fall back to, a machine without a key cannot produce a
-    pass at all. Revisit this the day local depth lands.
+    A missing key costs hosted depth and nothing else. Face tracking is local
+    and free, a mesh layer is a deliverable on its own, and depth made
+    elsewhere can be supplied — so telling the user the app cannot run would
+    simply be untrue.
     """
     monkeypatch.delenv(config.FAL_KEY_VARIABLE, raising=False)
     check = an_offline_checker().check_fal_key()
 
-    assert check.status == BLOCKED
-    assert check.fixes
+    assert check.status == DEGRADED
+    assert check.fixes, "and it still says how to set one"
+
+
+def test_a_missing_fal_key_does_not_block_the_whole_panel(monkeypatch):
+    """
+    The headline the user actually reads. This is the bug the three-state
+    report exists to prevent: one unavailable backend reading as a dead app.
+    """
+    monkeypatch.delenv(config.FAL_KEY_VARIABLE, raising=False)
+    checks = [
+        Check(key="python", label="Python", status=OK, detail="3.12.10"),
+        an_offline_checker().check_fal_key(),
+    ]
+
+    assert gating_status(checks) == DEGRADED
 
 
 def test_a_present_fal_key_is_reported_without_its_value(monkeypatch):
@@ -203,7 +218,7 @@ def test_whitespace_is_not_a_key(monkeypatch):
     """An empty variable set by a half-finished profile edit is not a key."""
     monkeypatch.setenv(config.FAL_KEY_VARIABLE, "   ")
 
-    assert an_offline_checker().check_fal_key().status == BLOCKED
+    assert an_offline_checker().check_fal_key().status == DEGRADED
 
 
 def test_disk_space_is_reported_in_minutes_of_footage():
