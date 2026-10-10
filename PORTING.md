@@ -165,13 +165,13 @@ a `.npz` back.
 Ticked when the module is in this repo, trimmed, modernised, carrying its
 provenance line, and covered by a test that runs.
 
-- [ ] **1.3** the three model shapes as reference — `models.py` is **not** copied
-- [ ] **1.4** `styles.css`, the `index.html` patterns, `tabs.js`'s `whenShown`
+- [x] **1.3** the three model shapes as reference — `models.py` is **not** copied
+- [x] **1.4** `styles.css`, the `index.html` patterns, `tabs.js`'s `whenShown`
       — the shell and the look, early
-- [ ] **1.5** `ffmpeg_tools.py`, `utils.py`, the `config.py` shape
-- [ ] **1.6** `environment.py`, `templates.py`, `runtime.py`, `routes/setup.py`'s
+- [x] **1.5** `ffmpeg_tools.py`, `utils.py`, the `config.py` shape
+- [x] **1.6** `environment.py`, `templates.py`, `runtime.py`, `routes/setup.py`'s
       environment half, `environment.js`
-- [ ] **1.7** `browse.py`, `routes/files.py`, `picker.js`
+- [x] **1.7** `browse.py`, `routes/files.py`, `picker.js`
 - [ ] **2.1** `probe.py` (no cropdetect), `timecode.py`
 - [ ] **2.2** `mezzanine.py`
 - [ ] **2.3** `proxy.py`

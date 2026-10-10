@@ -11,8 +11,10 @@ wardrobe, set. What is left is shape, staging and motion. The face mesh puts
 back the one thing depth is too coarse to carry — expression and lip shape —
 so the generated performance follows the original one.
 
-**Status: planning.** The app shell exists; nothing else does.
-ARCHITECTURE.md holds the agreed shape and TODO.md the order it gets built in.
+**Status: Phase 1, nearly done.** The app runs, reports what it needs in three
+states with a copyable fix for each, and lets you choose a source. Nothing
+reads a frame yet. ARCHITECTURE.md holds the agreed shape and TODO.md the
+order it gets built in.
 
 **Most of the foundation is already written, in another repo.** Probing,
 timecode, the mezzanine, the numbered proxy, the three-state dependency panel,
@@ -272,6 +274,15 @@ before it becomes code (CODE_STYLE.md §6). If the decision then goes the other
 way, the skeleton is deleted and the reasoning goes into TODO.md under
 Deferred. An unimplemented module left in place reads as work in progress
 rather than as work that was rejected.
+
+**A validator that enforces a stated invariant is written, not skeletoned.**
+CODE_STYLE.md section 6 has new functions land as pseudocode ending in
+`raise NotImplementedError`, and a validator is a function — but a Pydantic
+validator runs every time its model is constructed, so one that raised would
+make the model impossible to build anywhere, including in the tests meant to
+review the skeleton. Small declarative checks — ordered box corners, unique
+seed frames, a derived `passed` — are therefore real code from the start.
+Anything with actual logic stays pseudocode.
 
 **Landmarks are the exception to Pydantic everywhere.** Models are Pydantic at
 every boundary that is serialised, validated, or crossed between modules — the

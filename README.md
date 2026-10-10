@@ -7,16 +7,20 @@ actor and the background while keeping the performance.
 
 ## Project Status
 
-🚦 **Planning.** The app shell runs; nothing else is built. Most of the
-foundation is being ported from
-[minicut-shot-detector](https://github.com/ggvfx/minicut-shot-detector) rather
-than rewritten — see [PORTING.md](PORTING.md).
+🚦 **Phase 1, nearly done.** The app runs, reports what it needs and lets you
+choose a source. Nothing reads a frame yet. Most of the foundation is ported
+from [minicut-shot-detector](https://github.com/ggvfx/minicut-shot-detector)
+rather than rewritten — see [PORTING.md](PORTING.md).
 
-**Works now:** the server starts, the page opens with its two tabs, static
-files are served so the browser always picks up changes.
+**Works now:** the server starts and the page lays out the whole workflow with
+every unbuilt control dimmed; the Setup tab reports Python, ffmpeg, ffprobe,
+encoders, the drawtext filter, MediaPipe, OpenCV, the Fal key and free disk
+space in three states, each failure carrying a command you can copy; the path
+picker browses this machine; and `setup.bat` builds a working install from
+scratch. 101 tests.
 
-**Next milestone:** Phase 1 — the app reports what is installed and lets you
-choose a file.
+**Next milestone:** Phase 2 — a source goes in and a pass of exactly its length
+comes out with its audio.
 
 Design in [ARCHITECTURE.md](ARCHITECTURE.md), settled decisions in
 [CLAUDE.md](CLAUDE.md), task order in [TODO.md](TODO.md).
