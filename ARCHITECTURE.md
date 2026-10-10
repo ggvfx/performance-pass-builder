@@ -358,6 +358,45 @@ function signature.
 - **New work with no counterpart in minicut**, which stream-copies shots out
   of a mezzanine and never pipes RGB in either direction
 
+#### Audio, in one place
+
+Audio handling is spread across the probe, the encoder and the sidecar, so
+what it does and what it costs is gathered here.
+
+**Carried untouched when it is carried.** Stream-copied into the output, not
+decoded and re-encoded, so lip sync in the generation is driven by exactly
+what was recorded.
+
+**Whether to carry it is the artist's choice**, defaulting to yes. Leaving it
+out is checked rather than assumed — the validator asserts the output has no
+audio stream, because for client audio that should not travel with a file,
+"we did not add it" and "it is not there" are different claims.
+
+**There is exactly one lossy step, and it is announced three times.** Where
+the source's codec cannot live in an mp4 — 24-bit PCM off a camera being the
+usual case — it is re-encoded once as AAC 320k. The probe warns before the
+job, the page shows that warning, and the sidecar records it afterwards.
+Silently degrading someone's production audio is not a thing to be discreet
+about.
+
+**The mux happens in the same ffmpeg pass as the picture**, as a second input
+rather than a second pass over the whole video. That saves writing every
+frame twice, and it carries one risk worth naming: with two inputs, ffmpeg
+picks streams by its own rules unless told otherwise, and could take the
+*source's* picture instead of the frames being piped in — silently delivering
+the original footage as the pass. `-map 0:v:0` is therefore explicit, and a
+test writes flat colour through the pipe and reads back which picture
+actually arrived.
+
+**`-shortest` is never passed.** It would trim the picture to the audio, and
+nothing is ever trimmed — see non-negotiable 2.
+
+**What happened is recorded, not inferred.** `AudioHandling` is one of
+copied, encoded, omitted or none. Three of those produce files that look
+identical, so the sidecar is the only place the difference survives. A PNG
+sequence always records `omitted`, because a folder of frames cannot hold a
+soundtrack.
+
 ### 8. Validate — `src/performance/validator.py`
 
 *The `framemd5` machinery ported from minicut's `splitter/validator.py`, ~35%.*
