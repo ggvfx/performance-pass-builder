@@ -128,11 +128,11 @@ passes feeding the same stack rather than as changes to any of the above.
   and re-encoded, so lip sync in the generation is driven by exactly what was
   captured — or left out entirely if you ask, which is verified rather than
   assumed. Nothing is ever trimmed to make two lengths agree.
-- **Formats that open where they are going.** mp4, h264 or h265, for
-  generation software and compositors. A layer delivered on its own keeps its
-  transparency in a .mov, because no mp4 codec carries alpha reliably —
-  QuickTime RLE by default, which on line art is lossless and a fiftieth the
-  size of ProRes.
+- **Formats that open where they are going.** mp4 for generation software and
+  compositors — h265 by default, h264 for anything that will not take it. The
+  face mesh exported on its own keeps its transparency, as a lossless
+  QuickTime RLE `.mov` or a PNG sequence, because no mp4 codec carries alpha
+  in a form a compositor reliably opens.
 - **Review against burned-in frame numbers.** Browsers seek long-GOP video
   approximately, so the proxy is all-intra with each frame's number in the
   corner — the frame you selected on is a frame you can see. The number never

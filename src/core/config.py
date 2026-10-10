@@ -135,6 +135,17 @@ ALPHA_RLE_ENCODER = "qtrle"
 ALPHA_RLE_PIXEL_FORMAT = "argb"
 
 
+# A sequence goes into a folder of its own, named after the pass, with the
+# frames named the same — so Nuke sees `take_01_faces.####.png` and nothing
+# is scattered among the single-file deliverables.
+#
+# Numbered from 0, matching this app's own frame indices rather than the
+# 1001 an industry sequence often starts at: frame 40 of the track has to be
+# frame 40 of the sequence, and inventing an offset here would break that
+# correspondence with landmarks.json and everything else.
+PNG_FRAME_PATTERN = "%04d"
+PNG_START_NUMBER = "0"
+
 # --- AUDIO ---
 
 # Codecs an mp4 will carry as a stream copy. Anything else is encoded once at

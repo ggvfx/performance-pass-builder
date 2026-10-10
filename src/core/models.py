@@ -129,8 +129,13 @@ class OutputFormat(str, Enum):
         frames at 1080p, measured. Line art over nothing is the worst case
         for a DCT codec and the best case for run-length encoding.
 
-        **It is used in exactly one place**: exporting the face mesh on its
-        own. Everything else is a composite over something opaque, where
+        PNG_SEQUENCE is the other way to deliver alpha, and the one a
+        compositor is happiest with: lossless, unambiguous, and what Nuke
+        reads without being asked twice. The cost is that it is many files
+        rather than one, so it goes into a folder of its own.
+
+        **Both are used in exactly one place**: exporting the face mesh on
+        its own. Everything else is a composite over something opaque, where
         there is no transparency left to carry.
 
         ProRes 4444 was offered and removed as unused. It would be the right
@@ -139,17 +144,40 @@ class OutputFormat(str, Enum):
         produces one. Re-adding it is an enum member and three constants.
     """
 
-    H264 = "h264"            # .mp4, no alpha. For software that will not take h265
-    H265 = "h265"            # .mp4, no alpha. The default
-    ALPHA_RLE = "alpha_rle"  # .mov, alpha, lossless. The face mesh alone
+    H264 = "h264"                  # .mp4, no alpha. For software that will not take h265
+    H265 = "h265"                  # .mp4, no alpha. The default
+    ALPHA_RLE = "alpha_rle"        # .mov, alpha, lossless, one file
+    PNG_SEQUENCE = "png_sequence"  # .png frames in a folder. Alpha, lossless
 
     @property
     def suffix(self) -> str:
+        """
+        What one written file is called.
+
+        Notes:
+            For a sequence this is each frame's suffix, not the deliverable's
+            — the deliverable is the folder. See `is_sequence`.
+        """
+        if self is OutputFormat.PNG_SEQUENCE:
+            return ".png"
         return ".mov" if self.carries_alpha else ".mp4"
 
     @property
     def carries_alpha(self) -> bool:
-        return self is OutputFormat.ALPHA_RLE
+        return self in (OutputFormat.ALPHA_RLE, OutputFormat.PNG_SEQUENCE)
+
+    @property
+    def is_sequence(self) -> bool:
+        """
+        Whether the deliverable is a folder of frames rather than one file.
+
+        Notes:
+            Worth asking explicitly wherever a path is built: everything else
+            writes one file, and a sequence quietly scattering several
+            thousand PNGs among the deliverables would be a mess nobody
+            asked for.
+        """
+        return self is OutputFormat.PNG_SEQUENCE
 
 
 class AudioHandling(str, Enum):
@@ -561,6 +589,8 @@ class OutputRequest(BaseModel):
             holding ProRes, or a .mov holding h264, is a file that something
             downstream will refuse to open.
         """
+        if self.output_format.is_sequence:
+            return self.name  # The folder; the frames inside are numbered
         return f"{self.name}{self.output_format.suffix}"
 
     @model_validator(mode="after")
@@ -576,9 +606,12 @@ class OutputRequest(BaseModel):
         alpha_only = enabled == [LayerSource.FACE_MESH]
 
         if alpha_only and not self.output_format.carries_alpha:
+            with_alpha = ", ".join(
+                f.value for f in OutputFormat if f.carries_alpha
+            )
             raise ValueError(
-                f"the face mesh on its own needs {OutputFormat.ALPHA_RLE.value}, which "
-                f"carries alpha; {self.output_format.value} would flatten it onto black"
+                f"the face mesh on its own needs a format that carries alpha "
+                f"({with_alpha}); {self.output_format.value} would flatten it onto black"
             )
         return self
 

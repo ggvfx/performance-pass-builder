@@ -378,6 +378,28 @@ def test_the_filename_carries_the_format_s_own_suffix():
     )
 
 
+def test_either_alpha_format_is_accepted_for_the_mesh_alone():
+    """QuickTime RLE for one file; a PNG sequence for a compositor."""
+    for alpha_format in (OutputFormat.ALPHA_RLE, OutputFormat.PNG_SEQUENCE):
+        request = OutputRequest(
+            stack=a_stack(LayerSource.FACE_MESH),
+            name="take_01_faces",
+            output_format=alpha_format,
+        )
+        assert request.output_format.carries_alpha
+
+
+def test_a_sequence_s_deliverable_is_its_folder():
+    """The frames inside are numbered, so the name alone is the thing delivered."""
+    request = OutputRequest(
+        stack=a_stack(LayerSource.FACE_MESH),
+        name="take_01_faces",
+        output_format=OutputFormat.PNG_SEQUENCE,
+    )
+
+    assert request.filename == "take_01_faces"
+
+
 def test_the_mesh_alone_cannot_be_written_to_a_format_without_alpha():
     """
     The silent one. An encoder without alpha does not refuse a transparent

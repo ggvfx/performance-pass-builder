@@ -366,3 +366,108 @@ def test_the_default_is_h265(toolchain, probe, clips, tmp_path):
 
     assert writer.output_format is OutputFormat.H265
     assert "libx265" in writer.arguments()
+
+
+# --- PNG SEQUENCE ---
+
+
+def test_a_sequence_is_a_folder_not_a_file():
+    """Everything else writes one file; this one has to be asked about explicitly."""
+    assert OutputFormat.PNG_SEQUENCE.is_sequence is True
+    assert OutputFormat.PNG_SEQUENCE.carries_alpha is True
+    assert OutputFormat.PNG_SEQUENCE.suffix == ".png"
+
+    for other in (OutputFormat.H264, OutputFormat.H265, OutputFormat.ALPHA_RLE):
+        assert other.is_sequence is False, other
+
+
+@needs_ffmpeg
+def test_a_sequence_is_named_the_way_a_compositor_expects(toolchain, probe, clips, tmp_path):
+    """`take_01_faces.####.png` inside a folder of the same name."""
+    source = probe.probe(clips["film24"])
+    writer = OutputWriter(
+        toolchain,
+        tmp_path / "take_01_faces",
+        source,
+        output_format=OutputFormat.PNG_SEQUENCE,
+    )
+
+    assert writer.written_path.name == "take_01_faces.%04d.png"
+    assert writer.written_path.parent.name == "take_01_faces"
+
+
+@needs_ffmpeg
+def test_a_sequence_writes_one_file_per_frame_numbered_from_zero(
+    toolchain, probe, clips, tmp_path
+):
+    """
+    From 0, matching this app's own frame indices. ffmpeg starts at 1 unless
+    told otherwise, which would put every frame one out against
+    landmarks.json — the kind of off-by-one nobody notices until a mesh sits
+    on the wrong picture.
+    """
+    source = probe.probe(clips["film24"])
+    folder = tmp_path / "take_01_faces"
+
+    frame = np.zeros((source.height, source.width, 4), dtype=np.uint8)
+    frame[:, :, 1] = 255
+    frame[:, : source.width // 2, 3] = 255
+
+    with OutputWriter(
+        toolchain, folder, source, output_format=OutputFormat.PNG_SEQUENCE
+    ) as writer:
+        for _ in range(source.frame_count):
+            writer.write(frame)
+
+    written = sorted(folder.glob("*.png"))
+    print(f"{len(written)} frames, first {written[0].name}, last {written[-1].name}")
+
+    assert len(written) == source.frame_count
+    assert written[0].name == "take_01_faces.0000.png"
+    assert written[-1].name == f"take_01_faces.{source.frame_count - 1:04d}.png"
+
+
+@needs_ffmpeg
+def test_a_sequence_keeps_its_alpha(toolchain, probe, clips, tmp_path):
+    """The reason to choose it over an mp4 at all."""
+    source = probe.probe(clips["film24"])
+    folder = tmp_path / "mesh_seq"
+
+    frame = np.zeros((source.height, source.width, 4), dtype=np.uint8)
+    frame[:, :, 1] = 255
+    frame[:, : source.width // 2, 3] = 255
+
+    with OutputWriter(
+        toolchain, folder, source, output_format=OutputFormat.PNG_SEQUENCE
+    ) as writer:
+        for _ in range(source.frame_count):
+            writer.write(frame)
+
+    with FrameReader(
+        toolchain, folder / "mesh_seq.0000.png", source.width, source.height, pixel_format=RGBA
+    ) as reader:
+        back = reader.read()
+
+    assert int(back[source.height // 2, 10, 3]) > 200, "the opaque half lost its alpha"
+    assert int(back[source.height // 2, source.width - 10, 3]) < 55, "the clear half came back opaque"
+
+
+@needs_ffmpeg
+def test_a_sequence_reports_its_audio_as_omitted(toolchain, probe, clips, tmp_path):
+    """
+    A folder of PNGs cannot hold a soundtrack. Leaving the plan saying
+    "copied" would have the sidecar claim audio that is not there, which is
+    the one thing AudioHandling exists to prevent.
+    """
+    source = probe.probe(clips["with_audio"])
+    folder = tmp_path / "seq_audio"
+
+    frame = np.zeros((source.height, source.width, 4), dtype=np.uint8)
+    with OutputWriter(
+        toolchain, folder, source, include_audio=True, output_format=OutputFormat.PNG_SEQUENCE
+    ) as writer:
+        for _ in range(source.frame_count):
+            writer.write(frame)
+
+    assert writer.audio_handling is AudioHandling.OMITTED
+    assert writer.carries_audio is False

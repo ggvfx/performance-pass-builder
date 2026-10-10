@@ -35,7 +35,10 @@ again.
       carrying photographic content — a segmented region of the plate — where
       RLE would balloon instead.
 
-      *Agreed 2026-10-10, and ProRes then dropped entirely as unused.*
+      *Agreed 2026-10-10, and ProRes then dropped entirely as unused. A PNG
+      sequence was added alongside RLE at the same review: it is what you
+      mostly use in Nuke, it is unambiguously lossless, and it sidesteps the
+      qtrle question below.*
       **Still to confirm: that Nuke reads qtrle alpha cleanly.** Test files
       are in `D:\_repos\_scratch` — `alpha_test_qtrle.mov` and
       `alpha_test_prores4444.mov`, same content. If Nuke is awkward with the

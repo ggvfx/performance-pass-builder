@@ -301,6 +301,11 @@ class FrameWriter:
             "-movflags", "+faststart",
         ]
 
+    @property
+    def written_path(self) -> Path:
+        """What ffmpeg is told to write. A subclass may expand it — see encode.py."""
+        return self.path
+
     def arguments(self) -> list[str]:
         """
         The whole command, as one list.
@@ -315,11 +320,13 @@ class FrameWriter:
             *self.frame_input_arguments(),
             *self.video_output_arguments(),
             "-y",
-            str(self.path),
+            str(self.written_path),
         ]
 
     def __enter__(self) -> "FrameWriter":
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        # A sequence writes into its own folder, so that folder is what has to
+        # exist. `written_path` says which; for a single file it is the path.
+        self.written_path.parent.mkdir(parents=True, exist_ok=True)
 
         self._process = self.toolchain.popen_ffmpeg(
             self.arguments(),

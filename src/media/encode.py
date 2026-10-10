@@ -11,13 +11,14 @@ The audio is muxed in the same pass as the picture — one ffmpeg, two inputs:
 frames arriving on stdin, and the source file supplying its own audio stream.
 A second muxing pass would mean writing the video twice.
 
-Three formats, and mp4 is preferred for two of them because these files go to
-generation software and compositors, which all open mp4. h264 is the safe
-default; h265 is the same container at better quality for the size, for
-anything that takes it. The two alpha formats in a .mov are the
-exception, and only because no mp4 codec carries alpha in a form a compositor
-can be relied on to open. QuickTime RLE is the default of those: lossless,
-and about fifty times smaller than ProRes on line art over nothing.
+Four formats. h265 in an mp4 is the default and h264 is there for software
+that will not take it — mp4 either way, because these files go to generation
+software and compositors and that is what they open.
+
+The two alpha formats are used in exactly one place: the face mesh exported
+on its own, where no mp4 codec carries the transparency. QuickTime RLE is one
+small file; a PNG sequence is many, lossless, and what a compositor reads
+most happily.
 """
 
 import logging
@@ -34,6 +35,8 @@ from src.core.config import (
     H265_CRF,
     H265_PRESET,
     H265_TAG,
+    PNG_FRAME_PATTERN,
+    PNG_START_NUMBER,
 )
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import AudioHandling, OutputFormat, SourceInfo
@@ -48,6 +51,7 @@ ENCODE_SETTINGS = {
     OutputFormat.H264: ("libx264", H264_CRF, H264_PRESET),
     OutputFormat.H265: ("libx265", H265_CRF, H265_PRESET),
     OutputFormat.ALPHA_RLE: (ALPHA_RLE_ENCODER, 0, ""),
+    OutputFormat.PNG_SEQUENCE: ("png", 0, ""),
 }
 
 
@@ -121,6 +125,14 @@ class OutputWriter(FrameWriter):
         self.output_format = output_format
         self.audio_handling = plan_audio(source, include_audio)
 
+        if output_format.is_sequence and self.carries_audio:
+            # Not a refusal: the frames are exactly what was asked for. But a
+            # folder of PNGs cannot hold a soundtrack, and leaving the plan
+            # saying "copied" would have the sidecar claim audio that is not
+            # there — which is the one thing AudioHandling exists to prevent.
+            logging.info(f"{path.name} is a PNG sequence, so its audio is dropped")
+            self.audio_handling = AudioHandling.OMITTED
+
     @property
     def carries_audio(self) -> bool:
         """Whether this output will have an audio stream at all."""
@@ -159,6 +171,16 @@ class OutputWriter(FrameWriter):
 
             `+faststart` is an mp4 thing and is left off the .mov.
         """
+        if self.output_format is OutputFormat.PNG_SEQUENCE:
+            return [
+                "-c:v", self.codec,
+                "-pix_fmt", "rgba",
+                # From 0, matching this app's frame indices. ffmpeg starts at
+                # 1 otherwise, and every frame number would then be one out
+                # against landmarks.json.
+                "-start_number", PNG_START_NUMBER,
+            ]
+
         if self.output_format is OutputFormat.ALPHA_RLE:
             return ["-c:v", self.codec, "-pix_fmt", ALPHA_RLE_PIXEL_FORMAT]
 
@@ -176,6 +198,22 @@ class OutputWriter(FrameWriter):
             return [*mp4, "-tag:v", H265_TAG]
 
         return mp4
+
+    @property
+    def written_path(self) -> Path:
+        """
+        What ffmpeg is actually told to write.
+
+        Notes:
+            A sequence writes `<folder>/<folder name>.%04d.png`, so a
+            compositor sees `take_01_faces.####.png` and several thousand
+            frames stay out of the deliverables directory. Everything else
+            writes the path it was given.
+        """
+        if not self.output_format.is_sequence:
+            return self.path
+
+        return self.path / f"{self.path.name}.{PNG_FRAME_PATTERN}{self.output_format.suffix}"
 
     def arguments(self) -> list[str]:
         """
@@ -199,7 +237,7 @@ class OutputWriter(FrameWriter):
             "-map", "0:v:0",
             *self.video_output_arguments(),
             "-y",
-            str(self.path),
+            str(self.written_path),
         ]
 
     def close(self, abandon: bool = False) -> None:

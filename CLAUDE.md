@@ -45,7 +45,8 @@ function signature and is listed as a non-negotiable below.
 | Frontend | Plain HTML + CSS + vanilla JS | ES modules, no npm, no build step |
 | Serving | FastAPI static files on localhost | User opens it in their own browser |
 | Media | ffmpeg / ffprobe as subprocesses | Frames streamed through pipes, never a Python binding |
-| Output | mp4 — h265 by default, h264 where needed | What generation software and compositors open. The face mesh alone goes to .mov QuickTime RLE, because no mp4 codec carries alpha |
+| Output | mp4 — h265 by default, h264 where needed | What generation software and compositors open |
+| Output (alpha) | QuickTime RLE `.mov`, or a PNG sequence | Only for the face mesh exported alone. No mp4 codec carries alpha; a sequence is what a compositor reads most happily |
 | Face tracking | Google MediaPipe Face Landmarker | Local, CPU, a few MB of model |
 | Depth (hosted) | Video Depth Anything on Fal | `fal-ai/depth-anything-video`, the default |
 | Depth (local) | Video Depth Anything, PyTorch | Optional, for machines with a GPU. Later phase. Also the only way to get float depth without a multi-gigabyte download |
@@ -239,17 +240,21 @@ One folder per job. Whatever the artist asked for, and nothing else:
 
 ```
 <source>_performance/
-    <source>_composite.mp4         the stack as composited — h264 or h265
+    <source>_composite.mp4         the stack as composited — h265 or h264
     <source>_depth.mp4             the depth layer alone, if asked for
-    <source>_faces.mov             the face layer alone, with its alpha intact
+    <source>_faces.mov             the face layer alone, alpha intact
+    <source>_faces/                or the same as a PNG sequence
+        <source>_faces.0000.png
     <source>_landmarks.json        per face, per frame, normalised
     <source>_performance.json      sidecar
 ```
 
-mp4 for anything going to a generation model. The face layer is .mov because
-no mp4 codec carries alpha in a form a compositor reliably opens — QuickTime
-RLE by default, which is lossless and far smaller than ProRes on line art,
-with ProRes 4444 available for a pipeline that wants it.
+mp4 for anything going to a generation model, h265 by default. The face layer
+is the one exception, because no mp4 codec carries alpha in a form a
+compositor reliably opens: QuickTime RLE for one small lossless file, or a
+PNG sequence for a compositor that would rather have frames. A sequence is
+numbered from 0, matching this app's own frame indices, so frame 40 of a
+track is frame 40 of the sequence.
 
 A single-pass output is the stack with one layer enabled, so these come from
 one code path rather than an export mode each. Each carries the source audio
