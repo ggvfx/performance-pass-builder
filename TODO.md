@@ -195,7 +195,7 @@ needs rethinking.
       anything is built on assumptions: the `.npz` size and download time
       against the arithmetic in ARCHITECTURE.md, the bit depth of the grayscale
       video, and whether raw depth at a lower `resolution` is usable upscaled.
-      This gates 4.7 and 4.9 — if the download turns out impractical, the
+      This gates 4.8 and 4.10 — if the download turns out impractical, the
       windowing design needs revisiting, and that is far cheaper to learn here
 - [ ] **4.3** `DepthBackend` interface and the transport *(port — `backends/adapter.py`
       and `backends/transport.py` shapes)*
@@ -208,14 +208,22 @@ needs rethinking.
       `side_by_side` never set — see CLAUDE.md non-negotiable 14
 - [ ] **4.6** Depth validated against the source on arrival, by frame hash
       rather than on trust
-- [ ] **4.7** `.npz` → stored scalar field: extract the `depths` member to a
+- [ ] **4.7** **Supplied depth** — a backend that takes a depth video the
+      artist already made elsewhere, so nobody pays twice to put face meshes
+      over depth they already have. The same arrival checks, the same
+      conversion, the same window and colour map; only the call is skipped.
+      The page has to say that a colormapped import cannot be windowed, that
+      there is no model range to align against, and what precision it found.
+      **Also makes a missing `FAL_KEY` degraded rather than blocking**, since
+      a machine with no key can now produce a pass
+- [ ] **4.8** `.npz` → stored scalar field: extract the `depths` member to a
       plain `.npy`, memory-map it, stream to 16-bit single channel, record
       `min_depth` / `max_depth` / `model` / `shape`, delete the `.npz`.
       Loading the member directly out of the archive runs out of memory on any
       real shot
-- [ ] **4.8** Depth cached and reused, keyed to the source and the depth
+- [ ] **4.9** Depth cached and reused, keyed to the source and the depth
       settings. Changing a window or a colormap must never call Fal again
-- [ ] **4.9** Rendering the depth layer — window to a `near`/`far` pair, hard
+- [ ] **4.10** Rendering the depth layer — window to a `near`/`far` pair, hard
       clip, then colour map, from the stored field. The only module that
       colormaps. Local and instant, so changing either never calls the model
 

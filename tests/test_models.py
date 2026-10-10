@@ -196,6 +196,27 @@ def test_stored_depth_rejects_a_backwards_range():
             a_depth(**bad)
 
 
+def test_supplied_depth_may_have_no_range_at_all():
+    """
+    Depth somebody else generated carries no model range, so 0..1 means only
+    what it meant in that file. Recorded as unknown rather than guessed.
+    """
+    supplied = a_depth(backend=DepthBackendName.SUPPLIED, min_depth=None, max_depth=None)
+
+    assert supplied.min_depth is None
+    assert supplied.max_depth is None
+
+
+def test_a_half_known_range_is_rejected():
+    """
+    Worse than neither: a caller reading only min_depth would take it for a
+    complete answer and align a second pass against nothing.
+    """
+    for half in ({"max_depth": None}, {"min_depth": None}):
+        with pytest.raises(ValidationError, match="both known or both unknown"):
+            a_depth(**half)
+
+
 def test_stored_depth_records_its_precision():
     """What decides whether a tight window is honest or terraces."""
     assert a_depth(bit_depth=16).bit_depth == 16

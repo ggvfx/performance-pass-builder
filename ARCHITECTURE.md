@@ -135,9 +135,42 @@ when it is built.
 | Backend | Module | Needs |
 |---|---|---|
 | Fal | `src/backends/fal.py` | `FAL_KEY` in the environment. The default |
+| Supplied | `src/backends/supplied.py` | A depth video the artist already has |
 | Local | `src/backends/local_depth.py` | An NVIDIA GPU or Apple Silicon, PyTorch, the weights. Later phase |
 
 Nothing above `src/backends/` knows which one ran.
+
+#### Supplied depth
+
+Someone who already generated depth elsewhere should not have to pay for it
+again to get face meshes over it. **This is a backend like any other**: it
+returns a depth video, and the arrival checks, the conversion to the stored
+field, the window and the colour map all run exactly as they do for a hosted
+one. The only thing it skips is the call.
+
+That makes the existing validation worth more rather than less — depth from
+another tool is precisely the thing most likely to be a different length, a
+different rate or a different shape from the source, and that fails on
+arrival instead of halfway through a composite.
+
+Three things about it are different, and the page has to say so:
+
+- **A colormapped import cannot be windowed.** Turbo and the rest are not
+  invertible, so if what arrives is already coloured, the range controls are
+  off. Greyscale imports are fine. This is non-negotiable 12 seen from the
+  other side.
+- **There is no `min_depth` / `max_depth`.** A hosted pass reports the model's
+  own range; an import has only whatever 0–1 means in the file it came in as.
+  The stored normalisation is recorded as unknown, and aligning it against a
+  second pass is by eye with no numbers to start from.
+- **Precision is whatever the file has.** An 8-bit import windows badly, and
+  the panel should say so before the slider disappoints someone.
+
+It also changes a dependency: a missing `FAL_KEY` stops being blocking the
+day this exists, because a machine with no key can still build a pass from
+supplied depth. `check_fal_key` says it becomes degraded once there is a
+second source — this is that second source, and it arrives before local
+depth does.
 
 #### Fal's schema, read from its API page
 

@@ -236,9 +236,17 @@ class DepthColormap(str, Enum):
 
 
 class DepthBackendName(str, Enum):
-    """Which implementation of `DepthBackend` produced a depth field."""
+    """
+    Which implementation of `DepthBackend` produced a depth field.
+
+    SUPPLIED is depth the artist made elsewhere and handed in. It is a backend
+    like the others — the arrival checks and the conversion run unchanged, and
+    only the call is skipped — but what it yields is less adjustable: see
+    `StoredDepth.min_depth`.
+    """
 
     FAL = "fal"
+    SUPPLIED = "supplied"
     LOCAL = "local"
 
 
@@ -276,8 +284,13 @@ class StoredDepth(BaseModel):
     bit_depth: int = Field(ge=8, le=32)
 
     # The model's own range, from the .npz. See the note above.
-    min_depth: float
-    max_depth: float
+    #
+    # None for supplied depth: a file somebody else generated carries no range
+    # of its own, so 0..1 means only what it meant in that file. Recorded as
+    # unknown rather than guessed at 0..1, because aligning two passes by eye
+    # and aligning them against a wrong number are different situations.
+    min_depth: float | None = None
+    max_depth: float | None = None
 
     # --- AS CHECKED ON ARRIVAL ---
     width: int = Field(gt=0)
@@ -290,7 +303,16 @@ class StoredDepth(BaseModel):
 
     @model_validator(mode="after")
     def check_range_is_ordered(self) -> "StoredDepth":
-        if self.max_depth <= self.min_depth:
+        """
+        A known range has to be a range. An unknown one has to be wholly
+        unknown — half of it is worse than neither, because a caller reading
+        only `min_depth` would take it for a complete answer.
+        """
+        known = (self.min_depth is not None, self.max_depth is not None)
+        if any(known) and not all(known):
+            raise ValueError("min_depth and max_depth are either both known or both unknown")
+
+        if all(known) and self.max_depth <= self.min_depth:
             raise ValueError(
                 f"max_depth {self.max_depth} must be greater than min_depth {self.min_depth}"
             )
