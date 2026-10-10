@@ -123,9 +123,9 @@ def test_abandoning_a_reader_part_way_does_not_leave_ffmpeg_running(toolchain, p
 
     with FrameReader.for_source(toolchain, source) as reader:
         reader.read()
-        process = reader._process
+        pipe = reader._pipe
 
-    assert process.poll() is not None, "ffmpeg is still running after the reader closed"
+    assert pipe.is_running is False, "ffmpeg is still running after the reader closed"
 
 
 # --- WRITING ---

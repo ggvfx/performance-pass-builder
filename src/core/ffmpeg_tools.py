@@ -178,6 +178,29 @@ class MediaToolchain:
         logging.debug(f"Opening pipe: {' '.join(command)}")
         return subprocess.Popen(command, **streams)
 
+    def open_read_pipe(self, args: list[str]) -> "FFmpegReadPipe":
+        """
+        Starts ffmpeg writing bytes to a pipe we read.
+
+        Args:
+            args: Arguments after `-hide_banner`, ending in `-` for stdout.
+        """
+        return FFmpegReadPipe(
+            self.popen_ffmpeg(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        )
+
+    def open_write_pipe(self, args: list[str]) -> "FFmpegWritePipe":
+        """
+        Starts ffmpeg reading bytes from a pipe we write.
+
+        Args:
+            args: Arguments after `-hide_banner`, taking `-i -` for stdin.
+        """
+        return FFmpegWritePipe(
+            self.popen_ffmpeg(args, stdin=subprocess.PIPE, stderr=subprocess.PIPE),
+            args[-1],
+        )
+
     # --- ENCODERS ---
 
     def available_encoders(self) -> set[str]:
@@ -321,3 +344,139 @@ class MediaToolchain:
             "ffmpeg": self.ffmpeg.version if self.ffmpeg else "not found",
             "ffprobe": self.ffprobe.version if self.ffprobe else "not found",
         }
+
+
+# =====================================================================
+# PIPES
+#
+# A running ffmpeg with one of its streams open, and the whole of its
+# lifecycle: starting, reading or writing, closing, reaping, and turning its
+# own last words into a useful error.
+#
+# Here rather than in `media/` because this module owns every subprocess in
+# the app — and the point of that rule is swappability. Someone dropping this
+# tool into a larger one that does not use ffmpeg replaces this module and
+# nothing else; if the close-and-reap logic lived beside the frame handling,
+# they would have to reimplement that too.
+#
+# These know about bytes. They know nothing about frames, pixels or formats —
+# that is `media/frames.py`, and keeping the split there is what stops this
+# module quietly growing media knowledge.
+# =====================================================================
+
+
+class FFmpegReadPipe:
+    """ffmpeg writing bytes we read, until it runs out of them."""
+
+    def __init__(self, process: subprocess.Popen):
+        self._process = process
+
+    def read_exactly(self, count: int) -> bytes | None:
+        """
+        Exactly `count` bytes, or None once the stream has ended.
+
+        Raises:
+            RuntimeError: The stream ended part way through — fewer than
+                `count` bytes but more than zero. That is a truncated read
+                rather than an ending, and treating it as an ending would
+                silently lose everything after it.
+        """
+        if self._process.stdout is None:
+            raise RuntimeError("this pipe was not opened for reading")
+
+        chunk = self._process.stdout.read(count)
+        if not chunk:
+            return None
+
+        if len(chunk) != count:
+            raise RuntimeError(f"stream ended after {len(chunk)} bytes of an expected {count}")
+
+        return chunk
+
+    def close(self) -> None:
+        """
+        Stops ffmpeg and reaps it.
+
+        Notes:
+            Kills rather than waits. A reader is routinely abandoned part way
+            through — the caller found what it needed — and ffmpeg will not
+            exit on its own while it still has bytes to push into a pipe
+            nobody is draining.
+        """
+        if self._process.poll() is None:
+            self._process.kill()
+
+        for stream in (self._process.stdout, self._process.stderr):
+            if stream is not None:
+                stream.close()
+
+        self._process.wait()
+
+    @property
+    def is_running(self) -> bool:
+        """For a test that wants to prove nothing was left behind."""
+        return self._process.poll() is None
+
+
+class FFmpegWritePipe:
+    """ffmpeg reading bytes we write, until we tell it we are done."""
+
+    def __init__(self, process: subprocess.Popen, describes: str):
+        self._process = process
+        self._describes = describes  # For an error message, usually the output path
+
+    def write(self, data: bytes) -> None:
+        """
+        Hands bytes to ffmpeg.
+
+        Raises:
+            RuntimeError: ffmpeg has already exited, which means the encode
+                failed and every further byte would vanish into a closed
+                pipe. Its own message says why; ours would not.
+        """
+        if self._process.stdin is None:
+            raise RuntimeError("this pipe was not opened for writing")
+
+        try:
+            self._process.stdin.write(data)
+        except BrokenPipeError:
+            raise RuntimeError(f"ffmpeg stopped while writing {self._describes}: {self._stderr()}")
+
+    def finish(self) -> None:
+        """
+        Closes the input and waits for ffmpeg to finish the container.
+
+        Raises:
+            RuntimeError: ffmpeg exited badly, with its own last words.
+
+        Notes:
+            This is the half that matters. ffmpeg only completes a container
+            when its input closes, so a pipe that is never finished leaves a
+            file that will not play.
+        """
+        if self._process.stdin is not None:
+            self._process.stdin.close()
+
+        _, stderr = self._process.communicate()
+
+        if self._process.returncode != 0:
+            message = stderr.decode("utf-8", errors="replace").strip()
+            reason = message.splitlines()[-1] if message else "no output"
+            raise RuntimeError(f"Could not write {self._describes}: {reason}")
+
+    def abandon(self) -> None:
+        """
+        Kills ffmpeg without checking how it went.
+
+        Notes:
+            For unwinding from an error the caller already has. Raising a
+            "writer failed" on top of the original exception would hide the
+            one that says what actually went wrong.
+        """
+        self._process.kill()
+        self._process.wait()
+
+    def _stderr(self) -> str:
+        if self._process.stderr is None:
+            return ""
+        return self._process.stderr.read().decode("utf-8", errors="replace").strip()

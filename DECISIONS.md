@@ -12,6 +12,20 @@ again.
 
 ---
 
+## Status: all reviewed, 2026-10-10
+
+Every decision below has been read and agreed, three of them changed in the
+process. The backlog is empty; this file stays only until the one open
+**task** below is done, and for anything taken unattended after it.
+
+**Outstanding, and it is a check rather than a choice:** confirm Nuke reads
+`qtrle` alpha cleanly. Test files are in `D:\_repos\_scratch` —
+`alpha_test_qtrle.mov` and `alpha_test_prores4444.mov`, same content. A PNG
+sequence is now available either way, so this only decides whether the
+one-file option stays useful.
+
+---
+
 ## Phase 2
 
 ### 2.5b — Output formats (from your two notes)
@@ -69,19 +83,30 @@ again.
 - [x] **The fallback is aac at 320k**, kept — but it is now stated plainly as
       **the only lossy step applied to audio anywhere in the app**, in config,
       in the probe's warning, and in non-negotiable 3. *Agreed 2026-10-10.*
-- [ ] **`FrameWriter.arguments()` was made overridable** so `OutputWriter`
+- [x] **`FrameWriter.arguments()` was made overridable** so `OutputWriter`
       could add an audio input without reimplementing the pipe handling.
       Alternative was a separate class duplicating about sixty lines of
       process management.
 
+      *Revisited 2026-10-10 and resolved better than either option: the sixty
+      lines were not FrameWriter's to own at all. The whole process lifecycle
+      moved to `ffmpeg_tools` as `FFmpegReadPipe` and `FFmpegWritePipe`, so
+      the two writers now share it by holding a pipe rather than by
+      inheritance. The remaining subclass is thin — argument building only —
+      and the class of bug that already bit once (inheriting attributes and
+      silently ignoring them) has nothing left to inherit.*
+
 ### 2.4 — Frame streaming
 
-- [ ] **Pipes are opened in `ffmpeg_tools.py`, not in `frames.py`.** CLAUDE.md
-      says the toolchain is the only module that runs a subprocess, "including
-      the frame pipes", so `MediaToolchain.popen_ffmpeg()` is the one place
-      `Popen` is called. `frames.py` builds the arguments and does the numpy
-      work. Alternative was letting frames.py own its own process, which reads
-      more naturally but breaks a stated rule.
+- [x] **Pipes, and their whole lifecycle, live in `ffmpeg_tools.py`.**
+
+      *Agreed 2026-10-10, with a better reason than the one I gave. I argued
+      it from the stated rule and from having one place to log; you argued it
+      from swappability — this tool may end up inside something larger that
+      does not use ffmpeg, and then this module is the single seam to
+      replace. That reasoning also showed the job was half done: starting the
+      process lived here, but closing, killing, reaping and reading ffmpeg's
+      error did not. It all does now, and `media/` never sees a `Popen`.*
 - [x] **The pipeline is 8-bit, and that is deliberate.** Depth is stored at
       16-bit and windowed *before* frames enter the pipe, so the precision is
       spent where it matters. 8-bit is what h264 and h265 deliver anyway.

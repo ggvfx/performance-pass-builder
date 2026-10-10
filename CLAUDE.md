@@ -301,7 +301,17 @@ two differ.
 its thing, so when that thing misbehaves there is one place to look:
 
 - `src/core/ffmpeg_tools.py` — the only module that runs a subprocess,
-  including the frame pipes
+  including the frame pipes **and their whole lifecycle**: starting, closing,
+  reaping, and turning ffmpeg's last words into an error.
+
+  The reason is swappability, not tidiness. This tool may end up inside
+  something larger that does not use ffmpeg, and then this module is the one
+  seam to replace — which only holds if nothing else knows what a process is.
+  `media/` builds arguments and handles bytes; it never sees a `Popen`.
+
+  The thing to watch: `ffmpeg_tools` must stay ignorant of media. The moment
+  a pipe there knows about pixel formats or frame sizes, the rule has been
+  obeyed in letter and broken in spirit
 - `src/core/timecode.py` — the only place frames become time. Nothing else
   converts, including the thing that looks like it needs one little conversion
 - `src/backends/transport.py` — the only module that opens a socket to a

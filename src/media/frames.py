@@ -9,9 +9,14 @@ mezzanine and never moves a frame through Python. Everything this project
 does to a picture — windowing depth, drawing a mesh, compositing a stack —
 happens on arrays between these two.
 
-The process itself is started by `MediaToolchain.popen_ffmpeg`, which is the
-only place in the app a subprocess begins. This module owns the arguments and
-the arithmetic, and nothing else.
+**No subprocess is touched here.** `ffmpeg_tools` owns every process in the
+app, lifecycle included — starting, closing, reaping, and turning ffmpeg's
+last words into an error. This module owns what is frame-shaped: the
+arguments, the byte arithmetic, and the numpy array at the end.
+
+That split is about swappability. Someone dropping this tool into a larger
+one that does not use ffmpeg replaces `ffmpeg_tools` and nothing else — which
+only holds if the closing and reaping live there too, not beside the frames.
 
 Notes:
     Two pixel formats, both 8-bit. `RGB` covers the plate and depth; `RGBA`
@@ -23,14 +28,13 @@ Notes:
 """
 
 import logging
-import subprocess
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
 
 import numpy as np
 
-from src.core.ffmpeg_tools import MediaToolchain
+from src.core.ffmpeg_tools import FFmpegReadPipe, FFmpegWritePipe, MediaToolchain
 from src.core.models import SourceInfo
 
 # --- PIXEL FORMATS ---
@@ -118,7 +122,7 @@ class FrameReader:
         self.pixel_format = pixel_format
 
         self.frames_read = 0
-        self._process: subprocess.Popen | None = None
+        self._pipe: FFmpegReadPipe | None = None
 
     @classmethod
     def for_source(
@@ -144,45 +148,26 @@ class FrameReader:
     # --- LIFECYCLE ---
 
     def __enter__(self) -> "FrameReader":
-        self._process = self.toolchain.popen_ffmpeg(
-            [
-                "-v", "error",
-                "-i", str(self.path),
-                "-map", "0:v:0",
-                "-f", "rawvideo",
-                "-pix_fmt", self.pixel_format.name,
-                "-",
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+        self._pipe = self.toolchain.open_read_pipe([
+            "-v", "error",
+            "-i", str(self.path),
+            "-map", "0:v:0",
+            "-f", "rawvideo",
+            "-pix_fmt", self.pixel_format.name,
+            "-",
+        ])
         return self
 
     def __exit__(self, *_) -> None:
         self.close()
 
     def close(self) -> None:
-        """
-        Stops ffmpeg and reaps it.
-
-        Notes:
-            Kills rather than waits. A reader is routinely abandoned part way
-            through — the caller found what it needed — and ffmpeg will not
-            exit on its own while it still has frames to push into a pipe
-            nobody is draining.
-        """
-        if self._process is None:
+        """Stops ffmpeg and reaps it — see `FFmpegReadPipe.close`."""
+        if self._pipe is None:
             return
 
-        if self._process.poll() is None:
-            self._process.kill()
-
-        for stream in (self._process.stdout, self._process.stderr):
-            if stream is not None:
-                stream.close()
-
-        self._process.wait()
-        self._process = None
+        self._pipe.close()
+        self._pipe = None
 
     # --- READING ---
 
@@ -212,20 +197,20 @@ class FrameReader:
             stream, and treating it as the end would silently lose a frame
             and every frame after it.
         """
-        if self._process is None or self._process.stdout is None:
+        if self._pipe is None:
             raise RuntimeError("FrameReader must be used as a context manager")
 
         wanted = frame_size_bytes(self.width, self.height, self.pixel_format)
-        raw = self._process.stdout.read(wanted)
 
-        if not raw:
-            return None
-
-        if len(raw) != wanted:
+        try:
+            raw = self._pipe.read_exactly(wanted)
+        except RuntimeError as error:
             raise RuntimeError(
-                f"{self.path.name} ended mid-frame after {self.frames_read} frames: "
-                f"got {len(raw)} bytes of a {wanted} byte frame"
+                f"{self.path.name} ended mid-frame after {self.frames_read} frames: {error}"
             )
+
+        if raw is None:
+            return None
 
         self.frames_read += 1
         return np.frombuffer(raw, dtype=self.pixel_format.sample).reshape(
@@ -271,7 +256,7 @@ class FrameWriter:
         self.pixel_format = pixel_format
 
         self.frames_written = 0
-        self._process: subprocess.Popen | None = None
+        self._pipe: FFmpegWritePipe | None = None
 
     # --- LIFECYCLE ---
 
@@ -328,11 +313,7 @@ class FrameWriter:
         # exist. `written_path` says which; for a single file it is the path.
         self.written_path.parent.mkdir(parents=True, exist_ok=True)
 
-        self._process = self.toolchain.popen_ffmpeg(
-            self.arguments(),
-            stdin=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+        self._pipe = self.toolchain.open_write_pipe(self.arguments())
         return self
 
     def __exit__(self, exception_type, *_) -> None:
@@ -351,26 +332,16 @@ class FrameWriter:
         Raises:
             RuntimeError: If ffmpeg exited badly, with its own last words.
         """
-        if self._process is None:
+        if self._pipe is None:
             return
 
-        process, self._process = self._process, None
+        pipe, self._pipe = self._pipe, None
 
         if abandon:
-            process.kill()
-            process.wait()
+            pipe.abandon()
             return
 
-        if process.stdin is not None:
-            process.stdin.close()
-
-        _, stderr = process.communicate()
-
-        if process.returncode != 0:
-            message = stderr.decode("utf-8", errors="replace").strip()
-            reason = message.splitlines()[-1] if message else "no output"
-            raise RuntimeError(f"Could not write {self.path.name}: {reason}")
-
+        pipe.finish()
         logging.info(f"Wrote {self.frames_written} frames to {self.path}")
 
     # --- WRITING ---
@@ -381,11 +352,10 @@ class FrameWriter:
 
         Raises:
             RuntimeError: If the writer was not opened, or ffmpeg has already
-                exited — which means the encode failed and every further frame
-                would vanish into a closed pipe.
+                exited — see `FFmpegWritePipe.write`.
             ValueError: If the frame is the wrong shape or dtype.
         """
-        if self._process is None or self._process.stdin is None:
+        if self._pipe is None:
             raise RuntimeError("FrameWriter must be used as a context manager")
 
         expected = (self.height, self.width, self.pixel_format.channels)
@@ -397,12 +367,5 @@ class FrameWriter:
                 f"expected {np.dtype(self.pixel_format.sample)}"
             )
 
-        try:
-            self._process.stdin.write(frame.tobytes())
-        except BrokenPipeError:
-            # ffmpeg died. Its own message says why; ours would not.
-            stderr = self._process.stderr.read() if self._process.stderr else b""
-            message = stderr.decode("utf-8", errors="replace").strip()
-            raise RuntimeError(f"ffmpeg stopped while writing {self.path.name}: {message}")
-
+        self._pipe.write(frame.tobytes())
         self.frames_written += 1
