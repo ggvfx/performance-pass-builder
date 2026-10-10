@@ -150,10 +150,14 @@ length with the same audio, proven before any model exists.
       lossless where ProRes is not.*
       *Revised after review: ProRes dropped as unused, h265 is the default,
       and ALPHA_RLE is reserved for the one export that needs it.*
-- [ ] **2.6** Compositor — stack N layers in the order given, index 0 at the
+- [x] **2.6** Compositor — stack N layers in the order given, index 0 at the
       bottom, "over", skipping any switched off; write the result through the
       frame pipe. The one layer with alpha is the mesh, so this is where RGBA
       gets flattened onto whatever is beneath it.
+      *Done (19 tests). Straight alpha, `fg·α + bg·(1−α)`, in float32 so
+      repeated layers do not round down. Index 0 is the bottom, an opaque
+      layer hides what is under it, and a layer running short stops the job
+      rather than trimming the output.*
       **Here rather than in Phase 5 because it is frame plumbing**:
       it can be proven against generated clips standing in as layers, before
       any pass exists to produce a real one. v1 has no opacity, no blend modes

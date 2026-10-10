@@ -534,7 +534,7 @@ core/ffmpeg_tools.py  standard library only
 core/timecode.py      may import models
 core/*                may import the above
 media/, backends/     may import core
-composite/            may import core
+composite/            may import core, media
 performance/          may import core, media, backends, composite
 ui/                   may import everything below it
 ```
@@ -542,6 +542,12 @@ ui/                   may import everything below it
 Nothing imports upward. **`composite/` may not import `performance/`** — the
 compositor taking a dependency on a pass is the exact mistake this structure
 exists to prevent.
+
+It *may* import `media/`, which was tightened to `core` only in an earlier
+draft and relaxed when the compositor was written: layers are files, and
+`FrameReader` is the generic way to read one. That is plumbing, not a pass.
+The rule that carries the weight is the one above — a compositor that knows
+what depth is has stopped being a compositor.
 
 **And nothing outside `core/ffmpeg_tools.py` touches a subprocess.** Not the
 frame pipes, not their closing or reaping. The reason is swappability rather
