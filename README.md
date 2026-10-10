@@ -48,7 +48,7 @@ there is an app for it to hand over to.
 | Phase | What | State |
 |---|---|---|
 | 0 | Documents — design agreed in writing | ✅ Complete |
-| 1 | Scaffold: shared models, ffmpeg toolchain, dependency panel, path picker | 🔧 Current |
+| 1 | Scaffold: shared models, the UI shell, ffmpeg toolchain, dependency panel, path picker | 🔧 Current |
 | 2 | Frames in, frames out — a pass of exactly the source's length, with its audio | Planned |
 | 3 | Face tracking — several faces, several seeds each, smoothing, the mesh | Planned |
 | 4 | Depth on Fal — raw float depth, stored, windowed, colormapped | Planned |
