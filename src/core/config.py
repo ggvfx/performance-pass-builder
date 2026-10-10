@@ -77,6 +77,26 @@ MIN_FREE_GB = 20.0
 # it lives here rather than in the compositor.
 GREY_CARD_LEVEL = 0.18
 
+# --- AUDIO ---
+
+# Codecs an mp4 will carry as a stream copy. Anything else is encoded once at
+# a high bitrate on the way out, and the sidecar says so — 24-bit PCM off a
+# camera is the usual case. CLAUDE.md non-negotiable 3.
+MP4_AUDIO_CODECS = frozenset({"aac", "mp3", "ac3", "eac3", "alac", "opus"})
+
+# --- DISK ESTIMATION ---
+
+# The reference figure above is quoted for 1080p at 24 fps, so both resolution
+# and frame rate scale it.
+REFERENCE_PIXELS = 1920 * 1080
+REFERENCE_RATE = 24
+
+# --- OUTPUT NAMING ---
+
+# Deliverables go in a folder of their own beside the source, rather than
+# scattering files among the masters.
+OUTPUT_DIR_SUFFIX = "_performance"
+
 # --- SOURCE FILES ---
 
 # What the path picker offers. Lowercase; compared against a lowercased suffix.
