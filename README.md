@@ -7,20 +7,23 @@ actor and the background while keeping the performance.
 
 ## Project Status
 
-🚦 **Phase 1, nearly done.** The app runs, reports what it needs and lets you
-choose a source. Nothing reads a frame yet. Most of the foundation is ported
-from [minicut-shot-detector](https://github.com/ggvfx/minicut-shot-detector)
-rather than rewritten — see [PORTING.md](PORTING.md).
+🚦 **Phase 2, in progress.** The app runs, reports what it needs and lets you
+choose a source; underneath, it reads frames and writes them back. Nothing is
+tracked or generated yet. Most of the foundation is ported from
+[minicut-shot-detector](https://github.com/ggvfx/minicut-shot-detector) rather
+than rewritten — see [PORTING.md](PORTING.md).
 
-**Works now:** the server starts and the page lays out the whole workflow with
-every unbuilt control dimmed; the Setup tab reports Python, ffmpeg, ffprobe,
-encoders, the drawtext filter, MediaPipe, OpenCV, the Fal key and free disk
-space in three states, each failure carrying a command you can copy; the path
-picker browses this machine; and `setup.bat` builds a working install from
-scratch. 101 tests.
+**Works now:** the app reports what it needs in three states with a copyable
+fix for each, browses this machine for a source, and lays out the whole
+workflow with every unbuilt control dimmed. Underneath, it probes a source to
+an exact rational frame rate and refuses variable frame rate with a reason,
+converts frames to timecode and back at six rates including both drop-frame
+ones, builds an all-intra mezzanine verified frame for frame, and writes the
+numbered review proxy. 186 tests.
 
-**Next milestone:** Phase 2 — a source goes in and a pass of exactly its length
-comes out with its audio.
+**Next milestone:** the rest of Phase 2 — frames through a pipe, the
+compositor, the validator and the sidecar, so a source goes in and an output
+of exactly its length comes out with its audio.
 
 Design in [ARCHITECTURE.md](ARCHITECTURE.md), settled decisions in
 [CLAUDE.md](CLAUDE.md), task order in [TODO.md](TODO.md).
@@ -52,8 +55,8 @@ there is an app for it to hand over to.
 | Phase | What | State |
 |---|---|---|
 | 0 | Documents — design agreed in writing | ✅ Complete |
-| 1 | Scaffold: shared models, the UI shell, ffmpeg toolchain, dependency panel, path picker | 🔧 Current |
-| 2 | Frames in, frames out — a pass of exactly the source's length, with its audio | Planned |
+| 1 | Scaffold: shared models, the UI shell, ffmpeg toolchain, dependency panel, path picker | ✅ Complete |
+| 2 | Frames in, frames out — an output of exactly the source's length, with its audio | 🔧 Current |
 | 3 | Face tracking — several faces, several seeds each, smoothing, the mesh | Planned |
 | 4 | Depth on Fal — raw float depth, stored, windowed, colormapped | Planned |
 | 5 | The workflow — a step per pass, then the composite | Planned |

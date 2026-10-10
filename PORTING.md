@@ -172,9 +172,9 @@ provenance line, and covered by a test that runs.
 - [x] **1.6** `environment.py`, `templates.py`, `runtime.py`, `routes/setup.py`'s
       environment half, `environment.js`
 - [x] **1.7** `browse.py`, `routes/files.py`, `picker.js`
-- [ ] **2.1** `probe.py` (no cropdetect), `timecode.py`
-- [ ] **2.2** `mezzanine.py`
-- [ ] **2.3** `proxy.py`
+- [x] **2.1** `probe.py` (no cropdetect), `timecode.py`
+- [x] **2.2** `mezzanine.py`
+- [x] **2.3** `proxy.py`
 - [ ] **2.6** `validator.py`'s `framemd5` machinery only
 - [ ] **2.7** `sidecar.py`
 - [ ] **2.8** `workspace.py`
