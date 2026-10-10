@@ -13,10 +13,11 @@ still runs on a machine without it.
 duration.** At 24000/1001 a "2 second" clip is 47.952 frames, and which way
 that rounds is exactly the kind of thing this project must not be vague about.
 
-Notes:
-    There is no clip with a face in it. MediaPipe needs real footage, and
-    nothing synthetic that ffmpeg can generate will produce landmarks — that
-    is a Phase 3 problem, solved with a short clip kept outside the repo.
+**Clips with faces in them are the exception** and are not generated. No
+synthetic pattern ffmpeg can draw will produce a MediaPipe landmark, so the
+face tests run against real footage kept in `tests/media/`, which git ignores.
+A fresh clone has none, and those tests skip with a message naming the file
+they wanted. See `tests/media/README.md`.
 """
 
 import shutil
@@ -57,6 +58,58 @@ def ffmpeg_available() -> bool:
 def _run(command: list[str]) -> None:
     """Runs one generation command, failing the session loudly if it cannot."""
     subprocess.run(command, check=True, capture_output=True)
+
+
+# --- REAL FOOTAGE ---
+
+# Clips with faces, kept beside this file and never committed. Keyed the same
+# way as the generated ones so a test reads the same either way.
+MEDIA_DIRECTORY = Path(__file__).parent / "media"
+
+# name -> (file, what it is, and the geometry a test may rely on)
+FACE_CLIP_SPECS = {
+    "one_face": ("one_face_medium.mp4", 1920, 1080, "24/1", 240),
+}
+
+
+@pytest.fixture(scope="session")
+def face_clips(ffmpeg_available) -> dict[str, Path]:
+    """
+    Real footage with faces in it, skipping when it is not on this machine.
+
+    Returns:
+        dict of clip name -> Path, for every clip actually present.
+
+    Notes:
+        Skips rather than fails when the folder is empty. A fresh clone has no
+        footage and should still run its suite — the message names what was
+        wanted so the skip is actionable rather than mysterious.
+    """
+    if not ffmpeg_available:
+        pytest.skip("ffmpeg is not installed")
+
+    found = {
+        name: MEDIA_DIRECTORY / filename
+        for name, (filename, *_) in FACE_CLIP_SPECS.items()
+        if (MEDIA_DIRECTORY / filename).is_file()
+    }
+
+    if not found:
+        pytest.skip(
+            f"no test footage in {MEDIA_DIRECTORY}. A face tracker can only be "
+            f"tested against a face - see tests/media/README.md"
+        )
+
+    return found
+
+
+@pytest.fixture(scope="session")
+def one_face(face_clips) -> Path:
+    """The ordinary case: one person, medium close-up, frontal, well lit."""
+    if "one_face" not in face_clips:
+        pytest.skip(f"{FACE_CLIP_SPECS['one_face'][0]} is not in {MEDIA_DIRECTORY}")
+
+    return face_clips["one_face"]
 
 
 @pytest.fixture(scope="session")

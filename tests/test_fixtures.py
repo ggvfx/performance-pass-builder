@@ -13,7 +13,7 @@ import subprocess
 
 import pytest
 
-from tests.conftest import CLIP_HEIGHT, CLIP_SPECS, CLIP_WIDTH
+from tests.conftest import CLIP_HEIGHT, CLIP_SPECS, CLIP_WIDTH, FACE_CLIP_SPECS
 
 
 def probe(path) -> dict:
@@ -133,13 +133,60 @@ def test_the_audio_only_clip_has_no_picture(clips):
     assert audio_stream(clips["audio_only"]) is not None
 
 
+# --- REAL FOOTAGE ---
+
+
+def test_the_face_clip_is_what_conftest_claims(one_face):
+    """
+    The measuring stick again, for the one clip nobody can regenerate. A
+    different file dropped in under the same name would make the tracking
+    tests measure something else and still look like a tracking bug.
+    """
+    _, width, height, rate, frames = FACE_CLIP_SPECS["one_face"]
+    stream = video_stream(one_face)
+
+    print({k: stream[k] for k in ("width", "height", "r_frame_rate", "nb_frames")})
+    assert stream["width"] == width
+    assert stream["height"] == height
+    assert stream["r_frame_rate"] == rate
+    assert int(stream["nb_frames"]) == frames
+
+
+def test_the_face_clip_has_the_audio_a_pass_would_carry(one_face):
+    """
+    Real footage comes with sound, and non-negotiable 3 says a carried track
+    is untouched. The generated clips cover that path, but this is the first
+    one where the audio was not made by a sine generator.
+    """
+    assert audio_stream(one_face) is not None
+
+
+def test_the_face_clip_is_not_tracked_by_git(one_face):
+    """
+    The one that matters. This repository is public, and footage is often a
+    client's — so the clip living in the working tree is only safe for as
+    long as git is genuinely ignoring it.
+    """
+    result = subprocess.run(
+        ["git", "check-ignore", str(one_face)],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, f"{one_face.name} is NOT gitignored and could be committed"
+
+
 # --- HOUSEKEEPING ---
 
 
-def test_no_clip_is_written_inside_the_repository(clips):
+def test_no_generated_clip_is_written_inside_the_repository(clips):
     """
     The repo is public and media is gitignored, but the safest version of that
     is media that never lands in the working tree at all.
+
+    Real footage in `tests/media/` is the deliberate exception — it cannot be
+    generated, so it is kept in the tree and ignored instead, which the test
+    above checks rather than assumes.
     """
     from src.core.config import REPO_ROOT
 

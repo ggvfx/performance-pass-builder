@@ -4,7 +4,8 @@ Calls made while working unattended, newest first. **One or two lines each,
 and only the ones worth overturning** — this is meant to be read in a few
 minutes, not to be a changelog.
 
-Tick a line once you have read it and are happy. Anything you want changed,
+Tick a line once you have read it and are happy. `[~]` means deferred —
+read, nothing pending, judge it later against something real. Anything you want changed,
 say so and it changes; nothing here is settled by having been done.
 
 Delete this file when the backlog is empty and we are reviewing task by task
@@ -56,16 +57,19 @@ again.
       the one place in the project not using a typed model. **Agreed
       2026-10-10:** a dict is acceptable for something that is only ever
       written out, never read back and acted on.
-- [ ] **A job with no deliverables has not passed.** `all([])` is True, so
-      "produced nothing" would otherwise read as success.
+- [~] **A job with no deliverables has not passed.** `all([])` is True, so
+      "produced nothing" would otherwise read as success. **Deferred
+      2026-10-10** — nothing is pending either way, so it stays as written
+      until there is a real job to see it against.
 - [x] **Timestamps are UTC with an explicit offset.** These files travel
       between machines, and a naive local time is worse than none. **Agreed
       2026-10-10:** one machine-readable field only. If reading it is ever
       awkward the UI formats it for display, rather than the file carrying
       two timestamps that can disagree.
-- [ ] **A `DeliverableRecord` carries the whole stack**, not just the format.
+- [~] **A `DeliverableRecord` carries the whole stack**, not just the format.
       Without it, "why does this composite look like that" has no answer six
-      months on.
+      months on. **Deferred 2026-10-10**, same reason — easier to judge
+      against a real sidecar than in the abstract.
 
 ### 2.7 — Validator
 

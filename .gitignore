@@ -82,9 +82,13 @@ models/
 *.pth
 *.safetensors
 
-# Scratch clips for hand testing. Generated, never committed.
+# Test footage. Generated clips are made on the fly; the real clips a face
+# tracker needs are dropped in by hand and never committed — they are large,
+# and footage is often a client's. The README is the exception, so someone
+# cloning this knows what belongs there.
 testmedia/
-tests/media/
+tests/media/*
+!tests/media/README.md
 
 # Logs
 logs/

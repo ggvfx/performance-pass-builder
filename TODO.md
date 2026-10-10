@@ -189,6 +189,15 @@ checkpoint at 4.11.
 
 Local and free, so this is where the iterating happens.
 
+**Footage, not generated clips.** Everything up to here was proven against
+patterns ffmpeg draws, and MediaPipe will not find a landmark in any of them.
+`tests/media/one_face_medium.mp4` is the first real clip — one person, medium
+close-up, frontal, well lit, near-static — and it covers 3.2 and most of 3.3.
+Gitignored, with the tests skipping when it is absent so a fresh clone still
+runs. `tests/media/README.md` lists the clips still wanted: two faces
+crossing, a face leaving frame and returning, a profile turn, a moving camera,
+a small face in a wide shot. Those are what 3.4 onward actually need.
+
 - [ ] **3.1** MediaPipe model downloaded on first use, checked against a
       pinned SHA-256, cached outside the repo's tracked files
 - [ ] **3.2** One face, full frame, every frame — the baseline
