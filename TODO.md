@@ -116,7 +116,7 @@ been run on a Mac.
 
 ---
 
-## Phase 2 — Frames In, Frames Out (Current)
+## Phase 2 — Frames In, Frames Out
 
 Everything needed to read every frame of a source and write a pass the same
 length with the same audio, proven before any model exists.
@@ -185,7 +185,7 @@ checkpoint at 4.11.
 
 ---
 
-## Phase 3 — Face Tracking
+## Phase 3 — Face Tracking (Current)
 
 Local and free, so this is where the iterating happens.
 

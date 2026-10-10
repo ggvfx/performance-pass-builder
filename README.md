@@ -7,9 +7,10 @@ actor and the background while keeping the performance.
 
 ## Project Status
 
-🚦 **Phase 2, in progress.** The app runs, reports what it needs and lets you
-choose a source; underneath, it reads frames and writes them back. Nothing is
-tracked or generated yet. Most of the foundation is ported from
+🚦 **Phase 2 complete.** A source goes in and an output of exactly its length
+comes out with its audio, composited from layers and checked by the validator
+rather than by eye. Nothing is tracked or generated yet — that is Phase 3.
+Most of the foundation is ported from
 [minicut-shot-detector](https://github.com/ggvfx/minicut-shot-detector) rather
 than rewritten — see [PORTING.md](PORTING.md).
 
@@ -17,15 +18,20 @@ than rewritten — see [PORTING.md](PORTING.md).
 fix for each, browses this machine for a source, and lays out the whole
 workflow with every unbuilt control dimmed.
 
-Underneath, a source goes in and comes back out: probed to an exact rational
-frame rate with variable frame rate refused and a reason given, copied to an
+Underneath, the whole of Phase 2: a source probed to an exact rational frame
+rate with variable frame rate refused and a reason given, copied to an
 all-intra mezzanine verified frame for frame, given a numbered review proxy,
-streamed frame by frame through ffmpeg pipes, and written back at exactly its
-original length with its audio carried untouched — or deliberately left out,
-which is checked rather than assumed. 225 tests.
+streamed frame by frame through ffmpeg pipes, composited from a stack of
+layers with straight alpha, and written back at exactly its original length
+with its audio carried untouched — or deliberately left out, which is checked
+rather than assumed. Every deliverable is validated against its source and
+recorded in a sidecar, whether it passed or failed. 295 tests.
 
-**Next milestone:** the rest of Phase 2 — the compositor, the validator and
-the sidecar.
+All of it proven against clips ffmpeg generates. Whether it is right on real
+footage is a deliberate checkpoint later, because some of it only a person
+can see.
+
+**Next milestone:** Phase 3 — face tracking.
 
 Design in [ARCHITECTURE.md](ARCHITECTURE.md), settled decisions in
 [CLAUDE.md](CLAUDE.md), task order in [TODO.md](TODO.md).
@@ -58,8 +64,8 @@ there is an app for it to hand over to.
 |---|---|---|
 | 0 | Documents — design agreed in writing | ✅ Complete |
 | 1 | Scaffold: shared models, the UI shell, ffmpeg toolchain, dependency panel, path picker | ✅ Complete |
-| 2 | Frames in, frames out — an output of exactly the source's length, with its audio | 🔧 Current |
-| 3 | Face tracking — several faces, several seeds each, smoothing, the mesh | Planned |
+| 2 | Frames in, frames out — an output of exactly the source's length, with its audio | ✅ Complete |
+| 3 | Face tracking — several faces, several seeds each, smoothing, the mesh | 🔧 Current |
 | 4 | Depth on Fal — raw float depth, stored, windowed, colormapped | Planned |
 | 5 | The workflow — a step per pass, then the composite | Planned |
 | 6 | Local depth, for machines with a GPU | Optional |

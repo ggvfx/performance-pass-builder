@@ -9,14 +9,19 @@ modernised for 3.12. Everything about shots was left behind — about two
 thirds of that file — and what came across is the part that answers "is this
 video, frame for frame, the picture I think it is".
 
-Two kinds of check, cheapest first:
+**What `validate` checks is metadata**: frame count, frame rate, duration,
+and whether an audio stream is there. Reading it costs nothing and catches
+every ordinary failure.
 
-1. **What the container says** — frame count, frame rate, duration, and
-   whether an audio stream is there. Reading metadata costs nothing and
-   catches every ordinary failure.
-2. **What the pixels say** — per-frame hashes, for the one case where the
-   container can be right and the content wrong: depth arriving from a hosted
-   model that dropped or duplicated a frame somewhere in the middle.
+There is also per-frame hashing, and it is **not currently called by
+anything**. It came across because minicut used it to prove rejoined shots
+matched their mezzanine, and this project has no equivalent round trip:
+depth cannot be hash-compared against its source, because depth does not
+look like the picture it came from. What it could plausibly do here is spot
+frames *duplicated within* one file — a hosted model that stalled — which is
+a different function from the one that exists. Flagged for review rather
+than deleted, because it is thirty tested lines and the question is which
+shape it should take, not whether hashing is useful.
 
 Notes:
     This module owns the frame-count rule. `FrameReader` counts frames and
@@ -47,7 +52,6 @@ CHECK_FRAME_COUNT = "frame_count"
 CHECK_FRAME_RATE = "frame_rate"
 CHECK_DURATION = "duration"
 CHECK_AUDIO = "audio"
-CHECK_FRAME_HASHES = "frame_hashes"
 
 
 class OutputValidator:
@@ -86,9 +90,8 @@ class OutputValidator:
             not a pass either.
 
         Notes:
-            Frame hashes are not included. They cost a full decode of two
-            files and only answer a question metadata cannot — see
-            `compare_frames`, which the depth stage calls on arrival.
+            Frame hashes are not included, and nothing else calls them
+            either — see the module docstring.
         """
         checks: dict[str, bool] = {}
         failures: list[str] = []
@@ -199,15 +202,13 @@ class OutputValidator:
             naming the first frame that differs).
 
         Notes:
-            For the case metadata cannot reach: a hosted depth model that
-            dropped or duplicated a frame in the middle returns a file of the
-            right length, at the right rate, that is wrong from that frame
-            onward. The depth stage calls this on arrival — CLAUDE.md
-            non-negotiable 2, which says the depth is checked and never
-            trusted.
+            **Nothing calls this yet**, and the use it was ported for does
+            not work: depth cannot be hash-compared against its source,
+            because the two are not the same picture. See the module
+            docstring for what it might become instead.
 
-            Costs a full decode of both files, which is why it is not part of
-            `validate`.
+            Costs a full decode of both files, which is why it would not
+            belong in `validate` even once it has a caller.
         """
         expected = self.frame_hashes(expected_path)
         actual = self.frame_hashes(actual_path)

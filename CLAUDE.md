@@ -11,10 +11,11 @@ wardrobe, set. What is left is shape, staging and motion. The face mesh puts
 back the one thing depth is too coarse to carry — expression and lip shape —
 so the generated performance follows the original one.
 
-**Status: Phase 2, in progress.** The app runs, reports what it needs in three
-states with a copyable fix for each, and lets you choose a source. Underneath,
-the probe, the timecode engine, the mezzanine and the review proxy are built
-and tested on real encodes. Nothing is tracked or generated yet.
+**Status: Phase 3 next; Phase 2 complete.** The app runs, reports what it needs in three
+states with a copyable fix for each, and lets you choose a source. Underneath, the
+whole of Phase 2 is built and tested on real encodes: probe, timecode,
+mezzanine, proxy, frame pipes, audio, compositor, validator, sidecar and
+working folder. Nothing is tracked or generated yet.
 ARCHITECTURE.md holds the agreed shape and TODO.md the order it gets built in.
 
 **Most of the foundation is already written, in another repo.** Probing,

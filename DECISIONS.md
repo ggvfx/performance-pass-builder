@@ -12,6 +12,26 @@ again.
 
 ---
 
+## Phase 2 — cleanup findings
+
+- [ ] **`compare_frames` has no caller, and the reason it was ported does
+      not hold.** minicut used frame hashing to prove rejoined shots matched
+      their mezzanine. This project has no round trip, and depth *cannot* be
+      hash-compared against its source — they are not the same picture. The
+      docstring claiming "the depth stage calls this on arrival" was simply
+      wrong and has been corrected.
+
+      What hashing could usefully do here is spot frames **duplicated within
+      one file**, which is what a hosted model that stalled produces. That is
+      a different function from the one that exists.
+
+      **Three options, and I would like your call:** delete it and keep only
+      `frame_hashes`; reshape it into a duplicate-frame check for 4.6; or
+      leave it as a tested primitive waiting for a use. I have left it alone
+      rather than deleting thirty tested lines on my own judgement.
+- [x] **`CHECK_FRAME_HASHES` removed** — a constant for a check that never
+      ran.
+
 ## Phase 2 — 2.7 to 2.9
 
 ### 2.9 — Working folder
