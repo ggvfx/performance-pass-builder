@@ -245,13 +245,3 @@ def test_the_route_can_be_asked_to_re_check():
     """What Re-check does: the user may have installed something since launch."""
     assert client.get("/api/environment?refresh=true").status_code == 200
 
-
-def test_the_install_guide_reads_whatever_state_the_machine_is_in():
-    """The checks only speak up when something is missing; this one always talks."""
-    guide = client.get("/api/install-guide").json()
-
-    assert guide["platform"]
-    labels = [requirement["label"] for requirement in guide["requirements"]]
-    assert "Python" in labels
-    for requirement in guide["requirements"]:
-        assert requirement["fixes"], requirement["label"]

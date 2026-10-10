@@ -32,7 +32,6 @@ async function showDirectory(path) {
     if (!response.ok) return;
 
     const listing = await response.json();
-    state.pickerPath = listing.path;
 
     document.getElementById("picker-path").textContent = listing.path;
     renderRoots(listing.roots);

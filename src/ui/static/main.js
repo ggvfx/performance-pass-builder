@@ -1,9 +1,15 @@
 /*
  * Wiring.
  *
- * The one module the page loads. Everything else is imported from here, and
- * nothing else attaches a listener — so the answer to "what happens when this
- * is clicked" is always in this file.
+ * The one module the page loads, and where every element that is written in
+ * index.html gets its listener — so for anything on the page, the answer to
+ * "what happens when this is clicked" is in this file.
+ *
+ * A module that BUILDS elements wires what it builds, because nothing else
+ * can: picker.js attaches to rows it creates per directory, and
+ * environment.js to the fix buttons it creates per failing check. The rule is
+ * about static markup, which is where hunting for a handler is otherwise
+ * genuinely hard.
  */
 
 import { loadEnvironment } from "./environment.js";

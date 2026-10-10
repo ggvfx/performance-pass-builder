@@ -28,7 +28,7 @@ from src.core.models import (
     FaceTrackingReport,
     FrameRange,
     NormalisedBox,
-    PreparedJob,
+    PreparedSource,
     ProbeReport,
     Seed,
     Selection,
@@ -177,17 +177,20 @@ def test_probe_report_separates_a_refusal_from_a_warning():
     assert len(warned.warnings) == 1
 
 
-def test_prepared_job_carries_its_depth_once_the_stage_has_run():
-    """`StoredDepth` is declared after PreparedJob, so this proves the reference resolves."""
-    job = PreparedJob(
+def test_a_prepared_source_holds_no_pass_output():
+    """
+    Preparing is shared and is not a pass. An earlier draft hung the depth
+    here, which only looked right while depth was the one pass — add faces and
+    segmentation and it becomes a bag of every result.
+    """
+    prepared = PreparedSource(
         source=a_source(),
         mezzanine_path="work/take_01_mezzanine.mov",
         proxy_path="work/take_01_proxy.mp4",
     )
-    assert job.depth is None
 
-    with_depth = job.model_copy(update={"depth": a_depth()})
-    assert with_depth.depth.model is DepthModel.SMALL
+    assert set(PreparedSource.model_fields) == {"source", "mezzanine_path", "proxy_path"}
+    assert prepared.source.frame_count == 100
 
 
 # --- DEPTH ---
@@ -205,7 +208,9 @@ def test_supplied_depth_may_have_no_range_at_all():
     Depth somebody else generated carries no model range, so 0..1 means only
     what it meant in that file. Recorded as unknown rather than guessed.
     """
-    supplied = a_depth(backend=DepthBackendName.SUPPLIED, min_depth=None, max_depth=None)
+    supplied = a_depth(
+        backend=DepthBackendName.SUPPLIED, model=None, min_depth=None, max_depth=None
+    )
 
     assert supplied.min_depth is None
     assert supplied.max_depth is None
@@ -229,29 +234,34 @@ def test_stored_depth_records_its_precision():
         a_depth(bit_depth=4)
 
 
-def test_depth_model_default_is_never_implied():
+def test_generated_depth_must_say_which_model_made_it():
     """
-    Fal defaults to VDA-Large, which is CC-BY-NC-4.0. The enum carries no
-    default of its own, so a caller has to choose — CLAUDE.md non-negotiable 14.
+    Fal selects VDA-Large when the parameter is absent, and that one is
+    CC-BY-NC-4.0 — so a model recorded by omission is a licence problem, not
+    merely a missing field. CLAUDE.md non-negotiable 14.
     """
     assert DepthModel.SMALL.value == "VDA-Small"
-    assert StoredDepth.model_fields["model"].is_required(), (
-        "StoredDepth.model must stay required: a default here would let the "
-        "licence-restricted VDA-Large be recorded by omission"
-    )
 
-    with pytest.raises(ValidationError):
-        StoredDepth(
-            path="work/d.mkv",
-            cache_key="abc",
-            backend=DepthBackendName.FAL,
-            bit_depth=16,
-            min_depth=0.5,
-            max_depth=42.0,
-            width=1920,
-            height=1080,
-            frame_count=100,
-        )
+    for backend in (DepthBackendName.FAL, DepthBackendName.LOCAL):
+        with pytest.raises(ValidationError, match="must record which model"):
+            a_depth(backend=backend, model=None)
+
+
+def test_supplied_depth_has_no_model_to_record():
+    """
+    A file somebody else generated was not made by any of these, so naming one
+    would be a guess written into the sidecar as fact.
+
+    This is the case that could not be built at all until the rule became
+    conditional: `model` was required outright, so supplied depth raised.
+    """
+    supplied = a_depth(
+        backend=DepthBackendName.SUPPLIED, model=None, min_depth=None, max_depth=None
+    )
+    assert supplied.model is None
+
+    with pytest.raises(ValidationError, match="no Video Depth Anything model"):
+        a_depth(backend=DepthBackendName.SUPPLIED, model=DepthModel.SMALL)
 
 
 def test_window_must_have_width():

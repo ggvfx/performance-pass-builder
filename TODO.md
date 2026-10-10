@@ -263,6 +263,12 @@ opening the app for the first time should be able to see the shape of the job.
 - [ ] **5.7** The warning before footage is uploaded, and the raw-depth
       download offered with its cost stated
 - [ ] **5.8** Work folder panel *(port — `work.js`)*
+- [ ] **5.9** An install guide on the Setup tab — how to install what the app
+      needs, readable whatever state the machine is in. The checks only speak
+      up when something is missing, which is no use to someone setting up a
+      second machine. *Written once at 1.6 as `/api/install-guide` and removed
+      in the Phase 1 cleanup: nothing called it, and an endpoint with no caller
+      is the kind of thing that rots quietly. It comes back with its panel.*
 
 **Phase done when:** an artist with a Fal key can produce a pass end to end
 from the browser, on Windows and on a Mac, choosing which passes to run.

@@ -8,6 +8,8 @@
  * moment rather than on page load.
  */
 
+import { state } from "./state.js";
+
 // Called when a tab becomes visible. Registered rather than imported here, so
 // this module stays about switching and knows nothing about what a tab does.
 const onShow = {};
@@ -19,6 +21,8 @@ export function whenShown(name, handler) {
 
 /** Shows one tab and hides the rest. */
 export function showTab(name) {
+    state.activeTab = name;
+
     for (const panel of document.querySelectorAll(".tab-panel")) {
         panel.classList.toggle("active", panel.id === name);
     }

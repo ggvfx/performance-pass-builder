@@ -25,8 +25,6 @@ from pathlib import Path
 
 import pytest
 
-from src.core.ffmpeg_tools import MediaToolchain
-
 # --- CLIP GEOMETRY ---
 
 # Small enough that a session's worth of clips generates in a second or two,
@@ -54,14 +52,6 @@ CLIP_SPECS = {
 def ffmpeg_available() -> bool:
     """Whether ffmpeg and ffprobe are both on PATH."""
     return shutil.which("ffmpeg") is not None and shutil.which("ffprobe") is not None
-
-
-@pytest.fixture(scope="session")
-def toolchain(ffmpeg_available) -> MediaToolchain:
-    """A discovered toolchain, skipping the test when ffmpeg is missing."""
-    if not ffmpeg_available:
-        pytest.skip("ffmpeg is not installed")
-    return MediaToolchain()
 
 
 def _run(command: list[str]) -> None:

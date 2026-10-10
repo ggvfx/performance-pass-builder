@@ -440,7 +440,10 @@ the restructure.
 | `src/ui/routes/setup.py` | What is installed, which backend is used |
 | `src/ui/routes/performance.py` | Prepare, run a pass, composite, output |
 | `src/ui/routes/files.py` | The path picker |
-| `src/ui/static/main.js` | Wiring — imports the rest, attaches every listener |
+| `src/ui/static/index.html` | The one page: both tabs, the step strip, every panel |
+| `src/ui/static/styles.css` | The one stylesheet. No framework |
+| `src/ui/static/main.js` | Wiring — imports the rest, and attaches the listener for every element written in the HTML |
+| `src/ui/static/tabs.js` | Performance Pass and Setup |
 | `src/ui/static/state.js` | The one object holding what the page knows |
 | `src/ui/static/steps.js` | The step strip, and what state each step is in |
 | `src/ui/static/player.js` | Playback, stepping, the frame readout |

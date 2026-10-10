@@ -174,12 +174,18 @@ class ProbeReport(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
-class PreparedJob(BaseModel):
+class PreparedSource(BaseModel):
     """
-    What a source needs before faces can be selected on it.
+    A source that is ready for passes to be run against it.
 
-    Everything expensive happens here — the mezzanine encode and the depth
-    call — so it is done once and the selection happens against the result.
+    Notes:
+        Preparing is shared and is not a pass: probe, mezzanine, proxy, done
+        once, and every pass reads the result.
+
+        It deliberately holds no pass output. An earlier draft carried the
+        depth here, which only looked right while depth was the one pass —
+        add faces and segmentation and this becomes a bag of every result,
+        which is the job's state rather than the source's.
     """
 
     source: SourceInfo
@@ -190,8 +196,6 @@ class PreparedJob(BaseModel):
 
     # Small, all-intra, frame numbers burned in. What the browser plays.
     proxy_path: Path
-
-    depth: "StoredDepth | None" = None  # None until the depth stage has run
 
 
 # =====================================================================
@@ -274,8 +278,14 @@ class StoredDepth(BaseModel):
 
     # --- WHAT PRODUCED IT ---
     backend: DepthBackendName
-    model: DepthModel
-    request_id: str | None = None   # Fal's, for the sidecar. None for local
+
+    # None only for supplied depth, which was not made by any of these. See
+    # check_model_matches_the_backend: the point of having no default is that
+    # Fal picks VDA-Large when the parameter is absent, and that one is
+    # CC-BY-NC-4.0.
+    model: DepthModel | None = None
+
+    request_id: str | None = None   # Fal's, for the sidecar. None otherwise
 
     # --- PRECISION ---
     # How many levels a window has to work with: the middle 10% of 8-bit depth
@@ -300,6 +310,24 @@ class StoredDepth(BaseModel):
     # The colormapped video that came back from the same call. Free, and the
     # instant preview before a window is chosen. Never the source of a layer.
     preview_path: Path | None = None
+
+    @model_validator(mode="after")
+    def check_model_matches_the_backend(self) -> "StoredDepth":
+        """
+        A generated pass names its model; a supplied one has none to name.
+
+        Notes:
+            Required for a generated pass on purpose. Fal selects VDA-Large
+            when the parameter is absent, which is CC-BY-NC-4.0, so a default
+            here would let a licence-restricted model be recorded by omission
+            — CLAUDE.md non-negotiable 14.
+        """
+        if self.backend is DepthBackendName.SUPPLIED:
+            if self.model is not None:
+                raise ValueError("supplied depth has no Video Depth Anything model to record")
+        elif self.model is None:
+            raise ValueError(f"{self.backend.value} depth must record which model produced it")
+        return self
 
     @model_validator(mode="after")
     def check_range_is_ordered(self) -> "StoredDepth":

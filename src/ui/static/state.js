@@ -29,7 +29,6 @@ export const state = {
 
     // --- PATH PICKER ---
     pickerMode: "",            // "source" picks a video file
-    pickerPath: "",            // The directory currently shown
 
     // --- SETUP ---
 };

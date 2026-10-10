@@ -12,7 +12,7 @@ from pathlib import Path
 
 from fastapi import APIRouter
 
-from src.core.environment import EnvironmentReport, ffmpeg_fixes, platform_name, python_fixes
+from src.core.environment import EnvironmentReport
 from src.ui.runtime import checker
 
 router = APIRouter()
@@ -43,23 +43,3 @@ def get_environment(output_dir: str | None = None, refresh: bool = False) -> Env
         refresh=refresh,
     )
 
-
-# --- INSTALL GUIDE ---
-
-
-@router.get("/api/install-guide")
-def get_install_guide() -> dict:
-    """
-    How to install what the app needs on this machine, whatever its state.
-
-    Separate from the environment checks on purpose. Those only speak up when
-    something is missing, which is useless to the person setting up a second
-    machine — this is readable when everything is already fine.
-    """
-    return {
-        "platform": platform_name(),
-        "requirements": [
-            {"label": "Python", "fixes": [fix.model_dump() for fix in python_fixes()]},
-            {"label": "ffmpeg and ffprobe", "fixes": [fix.model_dump() for fix in ffmpeg_fixes()]},
-        ],
-    }

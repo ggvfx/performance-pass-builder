@@ -248,8 +248,11 @@ and deleted. At 1080p it is 8.3 MB a frame, so keeping it is not an option.
 ## Frontend conventions
 
 - One `index.html`, one stylesheet, ES modules loaded natively. `main.js`
-  imports the rest and is the only place a listener is attached, so "what
-  happens when this is clicked" has one answer.
+  imports the rest and attaches the listener for **every element written in
+  the HTML**, so for anything on the page "what happens when this is clicked"
+  has one answer. A module that builds elements wires what it builds —
+  `picker.js` for its directory rows, `environment.js` for its fix buttons —
+  because nothing else can.
 - **The front end owns no arithmetic.** A box drawn on the proxy is sent as the
   frame it was drawn on and its corners as fractions of the picture. Pixels,
   frame rates and paths are worked out in Python, where the tests are.

@@ -430,7 +430,7 @@ class EnvironmentChecker:
             which is ARCHITECTURE.md's open question 6. On a machine with no
             wheel this is where that surfaces.
         """
-        return self._check_package("mediapipe", "MediaPipe", BLOCKED)
+        return self._check_package("mediapipe", "MediaPipe")
 
     def check_opencv(self) -> Check:
         """
@@ -438,22 +438,15 @@ class EnvironmentChecker:
 
         Blocking for the same reason as MediaPipe: nothing else draws.
         """
-        return self._check_package("cv2", "OpenCV", BLOCKED, distribution="opencv-contrib-python")
+        return self._check_package("cv2", "OpenCV", distribution="opencv-contrib-python")
 
-    def _check_package(
-        self,
-        module: str,
-        label: str,
-        missing_status: str,
-        distribution: str | None = None,
-    ) -> Check:
+    def _check_package(self, module: str, label: str, distribution: str | None = None) -> Check:
         """
-        Whether an installed Python package imports, and which version it is.
+        Whether a pinned Python package imports, and which version it is.
 
         Args:
             module: What to import — not always the distribution's own name.
             label: What the panel calls it.
-            missing_status: What its absence means for the app.
             distribution: The pip name, where it differs from the module.
 
         Notes:
@@ -461,6 +454,11 @@ class EnvironmentChecker:
             because a wheel can be recorded as installed and still fail to load
             — a missing native library on a platform without a proper wheel is
             exactly that case, and it is the one this check exists for.
+
+            Always blocking. Every package reached through here is pinned in
+            requirements.txt and has no alternative: nothing else tracks a
+            face, and nothing else draws. A package whose absence only
+            degraded the app would need its own status argument back.
         """
         key = label.lower().replace(" ", "_")
 
@@ -470,7 +468,7 @@ class EnvironmentChecker:
             return Check(
                 key=key,
                 label=label,
-                status=missing_status,
+                status=BLOCKED,
                 detail=f"Not installed, or will not load: {error}",
                 fixes=package_fixes(),
             )
