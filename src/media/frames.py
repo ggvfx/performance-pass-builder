@@ -14,10 +14,12 @@ only place in the app a subprocess begins. This module owns the arguments and
 the arithmetic, and nothing else.
 
 Notes:
-    Two pixel formats. `RGB` is three bytes a pixel and covers the plate and
-    depth. `RGBA` is four, and exists because the face mesh is the one layer
-    that needs alpha — both to composite over something inside the app, and
-    to be delivered on its own so it can be composited elsewhere.
+    Two pixel formats, both 8-bit. `RGB` covers the plate and depth; `RGBA`
+    exists because the face mesh is the one layer that needs transparency.
+
+    8-bit is what h264 and h265 deliver, and depth is windowed at 16-bit
+    before it ever reaches here — see `PixelFormat` for what going wider
+    would take, and why nothing wants it yet.
 """
 
 import logging
@@ -37,15 +39,32 @@ from src.core.models import SourceInfo
 @dataclass(frozen=True)
 class PixelFormat:
     """
-    How a frame is laid out in the pipe, and what numpy shape that gives.
+    How a frame is laid out in the pipe, and what numpy array that gives.
 
-    Two of them, because the face mesh is the one layer that needs alpha —
-    both to composite over something inside the app, and to be exported on
-    its own for compositing elsewhere.
+    Two of them today, both 8-bit: `RGB` for the plate and depth, `RGBA`
+    because the face mesh is the one layer that needs transparency.
+
+    Notes:
+        **Depth is stored at 16-bit and windowed before it reaches the pipe**,
+        so the precision is spent where it matters rather than lost here. What
+        travels between modules is the already-windowed picture, and 8-bit is
+        what h264 and h265 deliver anyway.
+
+        Going 10- or 16-bit later is a format added here, not a rewrite: the
+        depth of a sample is a field rather than an assumption, so a
+        `PixelFormat("rgb48le", 3, np.uint16)` plus a 10-bit output codec
+        would carry through. Nothing wants it yet — Seedance reads a depth
+        pass as a greyscale picture, not as depth — so nothing is built for
+        it.
     """
 
-    name: str       # What ffmpeg calls it
-    channels: int   # Bytes per pixel, and the array's third dimension
+    name: str                      # What ffmpeg calls it
+    channels: int                  # The array's third dimension
+    sample: type = np.uint8        # One component's numpy type
+
+    @property
+    def bytes_per_pixel(self) -> int:
+        return self.channels * np.dtype(self.sample).itemsize
 
 
 RGB = PixelFormat("rgb24", 3)
@@ -53,8 +72,15 @@ RGBA = PixelFormat("rgba", 4)
 
 
 def frame_size_bytes(width: int, height: int, pixel_format: PixelFormat = RGB) -> int:
-    """How many bytes one frame occupies in the pipe."""
-    return width * height * pixel_format.channels
+    """
+    How many bytes one frame occupies in the pipe.
+
+    Notes:
+        Channels and bytes are not the same question, even though they happen
+        to give the same answer at 8-bit. Conflating them is what would break
+        first the day a 16-bit format is added.
+    """
+    return width * height * pixel_format.bytes_per_pixel
 
 
 # --- READING ---
@@ -202,7 +228,7 @@ class FrameReader:
             )
 
         self.frames_read += 1
-        return np.frombuffer(raw, dtype=np.uint8).reshape(
+        return np.frombuffer(raw, dtype=self.pixel_format.sample).reshape(
             self.height, self.width, self.pixel_format.channels
         )
 
@@ -358,8 +384,11 @@ class FrameWriter:
         expected = (self.height, self.width, self.pixel_format.channels)
         if frame.shape != expected:
             raise ValueError(f"Frame {self.frames_written} is {frame.shape}, expected {expected}")
-        if frame.dtype != np.uint8:
-            raise ValueError(f"Frame {self.frames_written} is {frame.dtype}, expected uint8")
+        if frame.dtype != self.pixel_format.sample:
+            raise ValueError(
+                f"Frame {self.frames_written} is {frame.dtype}, "
+                f"expected {np.dtype(self.pixel_format.sample)}"
+            )
 
         try:
             self._process.stdin.write(frame.tobytes())

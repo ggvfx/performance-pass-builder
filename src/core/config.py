@@ -134,13 +134,6 @@ H265_TAG = "hvc1"
 ALPHA_RLE_ENCODER = "qtrle"
 ALPHA_RLE_PIXEL_FORMAT = "argb"
 
-# For a layer delivered on its own with its transparency intact. ProRes 4444
-# rather than qtrle or VP9: it is what a compositor opens without thinking,
-# which is the whole point of exporting a layer rather than a composite.
-# Profile 4 is 4444; yuva444p10le is the only alpha format prores_ks offers.
-PRORES_ENCODER = "prores_ks"
-PRORES_PROFILE = "4"
-PRORES_PIXEL_FORMAT = "yuva444p10le"
 
 # --- AUDIO ---
 
@@ -151,8 +144,13 @@ MP4_AUDIO_CODECS = frozenset({"aac", "mp3", "ac3", "eac3", "alac", "opus"})
 
 # Where the source's codec will not fit the container, it is encoded ONCE, at
 # a bitrate high enough that the generation model is driven by what was
-# recorded rather than by what survived a second pass. The sidecar records
-# that this happened.
+# recorded rather than by what survived a second pass.
+#
+# **This is the only lossy step applied to audio anywhere in the app**, and it
+# only happens for a codec mp4 cannot hold — 24-bit PCM off a camera being the
+# usual one. The probe warns before the job, and the sidecar records that it
+# happened. Said in three places on purpose: silently degrading someone's
+# production audio is not something to be discreet about.
 FALLBACK_AUDIO_CODEC = "aac"
 FALLBACK_AUDIO_BITRATE = "320k"
 

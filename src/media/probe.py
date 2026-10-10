@@ -22,6 +22,8 @@ from pathlib import Path
 
 from src.core.config import (
     DISK_COPIES_PER_JOB,
+    FALLBACK_AUDIO_BITRATE,
+    FALLBACK_AUDIO_CODEC,
     GB_PER_MINUTE_1080P24,
     MP4_AUDIO_CODECS,
     OUTPUT_DIR_SUFFIX,
@@ -105,7 +107,9 @@ class SourceProbe:
         if source.audio is not None and not source.audio.can_stream_copy_to_mp4:
             warnings.append(
                 f"The audio is {source.audio.codec}, which an mp4 cannot hold. It will be "
-                f"encoded once at a high bitrate, and the sidecar will say so."
+                f"re-encoded once as {FALLBACK_AUDIO_CODEC} {FALLBACK_AUDIO_BITRATE} — a "
+                f"lossy step, and the only one applied to audio anywhere in this app. "
+                f"The sidecar records that it happened."
             )
 
         # Duration is a length, not a position, so it is measured from zero.

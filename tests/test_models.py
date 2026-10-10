@@ -367,6 +367,7 @@ def test_the_filename_carries_the_format_s_own_suffix():
     stack = a_stack(LayerSource.DEPTH)
 
     assert OutputRequest(stack=stack, name="take_01_depth").filename == "take_01_depth.mp4"
+    assert OutputRequest(stack=stack, name="d").output_format is OutputFormat.H265
     assert (
         OutputRequest(
             stack=a_stack(LayerSource.FACE_MESH),

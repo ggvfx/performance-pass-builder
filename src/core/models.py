@@ -118,27 +118,30 @@ class OutputFormat(str, Enum):
         it — and plenty still does not, which is why both exist rather than
         one replacing the other.
 
-        The two alpha formats are the exception to mp4, and only because
-        there is no choice: neither h264 nor h265 carries alpha in any form a
-        compositor can be relied on to open.
+        **H265 is the default.** Better quality for the size, and the target
+        reads it. H264 is there for software that does not.
 
-        **ALPHA_RLE is the default for a layer with transparency**, which is
-        not the obvious answer. A face mesh is thin lines on nothing — the
-        worst case for a DCT codec and the best case for run-length encoding.
-        Measured on 48 frames of mesh-like content at 1080p, ProRes 4444 came
-        to 24.3 MB and QuickTime RLE to 0.5 MB, and the RLE one is lossless
-        where the ProRes is not. ProRes was also carrying 12-bit precision
-        that does not exist: OpenCV draws the mesh in 8-bit.
+        ALPHA_RLE is the exception to mp4, and only because there is no
+        choice: neither h264 nor h265 carries alpha in a form a compositor
+        can be relied on to open. It is QuickTime RLE — Apple's "Animation"
+        codec — which is lossless and, on a face mesh, about fifty times
+        smaller than ProRes 4444: 0.5 MB against 24.3 MB for the same 48
+        frames at 1080p, measured. Line art over nothing is the worst case
+        for a DCT codec and the best case for run-length encoding.
 
-        PRORES_4444 stays for the pipeline that insists on it, and would be
-        the right choice for a layer carrying photographic content — a
-        segmented region of the plate, say — where RLE would balloon instead.
+        **It is used in exactly one place**: exporting the face mesh on its
+        own. Everything else is a composite over something opaque, where
+        there is no transparency left to carry.
+
+        ProRes 4444 was offered and removed as unused. It would be the right
+        choice for a layer carrying *photographic* content with alpha — a
+        segmented region of the plate — so it comes back if segmentation
+        produces one. Re-adding it is an enum member and three constants.
     """
 
-    H264 = "h264"                # .mp4, no alpha. Opens anywhere
-    H265 = "h265"                # .mp4, no alpha. Better for the size
-    ALPHA_RLE = "alpha_rle"      # .mov, alpha, lossless, tiny for line art
-    PRORES_4444 = "prores_4444"  # .mov, alpha, for pipelines that want it
+    H264 = "h264"            # .mp4, no alpha. For software that will not take h265
+    H265 = "h265"            # .mp4, no alpha. The default
+    ALPHA_RLE = "alpha_rle"  # .mov, alpha, lossless. The face mesh alone
 
     @property
     def suffix(self) -> str:
@@ -146,7 +149,7 @@ class OutputFormat(str, Enum):
 
     @property
     def carries_alpha(self) -> bool:
-        return self in (OutputFormat.ALPHA_RLE, OutputFormat.PRORES_4444)
+        return self is OutputFormat.ALPHA_RLE
 
 
 class AudioHandling(str, Enum):
@@ -543,7 +546,7 @@ class OutputRequest(BaseModel):
 
     stack: LayerStack
     include_audio: bool = True
-    output_format: OutputFormat = OutputFormat.H264
+    output_format: OutputFormat = OutputFormat.H265
 
     name: str = Field(min_length=1)  # The deliverable's file stem, no suffix
 
@@ -574,9 +577,8 @@ class OutputRequest(BaseModel):
 
         if alpha_only and not self.output_format.carries_alpha:
             raise ValueError(
-                "the face mesh on its own needs a format that carries alpha "
-                f"({OutputFormat.ALPHA_RLE.value} or {OutputFormat.PRORES_4444.value}); "
-                f"{self.output_format.value} would flatten it onto black"
+                f"the face mesh on its own needs {OutputFormat.ALPHA_RLE.value}, which "
+                f"carries alpha; {self.output_format.value} would flatten it onto black"
             )
         return self
 

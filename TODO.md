@@ -148,6 +148,8 @@ length with the same audio, proven before any model exists.
       in .mov for a layer delivered with its alpha intact. RLE is the default
       of those — measured fifty times smaller than ProRes on line art, and
       lossless where ProRes is not.*
+      *Revised after review: ProRes dropped as unused, h265 is the default,
+      and ALPHA_RLE is reserved for the one export that needs it.*
 - [ ] **2.6** Compositor — stack N layers in the order given, index 0 at the
       bottom, "over", skipping any switched off; write the result through the
       frame pipe. The one layer with alpha is the mesh, so this is where RGBA
@@ -269,7 +271,12 @@ opening the app for the first time should be able to see the shape of the job.
 - [ ] **5.5** Composite step: the stack, **reorderable**, with a switch per
       layer and the plate and grey card listed beside the passes. The output
       button, and the choice of whether to carry the audio. Outputting one
-      pass is this with one layer on
+      pass is this with one layer on.
+      *Format: the artist chooses h265 (default) or h264, and nothing else.
+      The alpha format is picked by the app for a face-mesh-only export
+      rather than offered — three-quarters of a format dropdown would be
+      wrong for whatever they are doing. h265 is hidden when the build has no
+      libx265, which the Setup panel already reports.*
 - [ ] **5.6** Routes behind all of it *(port — `routes/splitter.py` shape)*:
       prepare, run one pass, composite, output
 - [ ] **5.7** The warning before footage is uploaded, and the raw-depth

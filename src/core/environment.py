@@ -336,9 +336,15 @@ class EnvironmentChecker:
         """
         The encoders the mezzanine, the proxy and the deliverables need.
 
-        libx264 is required: the proxy and both passes are h264. libx265 only
-        matters for an h265 source's mezzanine, which keeps the source's own
-        codec, so its absence is a limitation rather than a failure.
+        libx264 is required: the proxy is h264, and it is the fallback every
+        output can always be written as.
+
+        libx265 is a limitation rather than a failure, but a bigger one than
+        it looks — **h265 is the default output format**, so without it the
+        app still works and every deliverable comes out h264. An h265 source
+        also cannot keep its own codec through the mezzanine. The row says
+        both, because "degraded" with no consequence attached is a row people
+        learn to ignore.
         """
         if self.toolchain.ffmpeg is None:
             return Check(
@@ -365,8 +371,9 @@ class EnvironmentChecker:
                 label="Encoders",
                 status=DEGRADED,
                 detail=(
-                    f"{config.REQUIRED_ENCODER} — no {', '.join(optional)}, so an h265 "
-                    f"source cannot keep its codec through the mezzanine"
+                    f"{config.REQUIRED_ENCODER} — no {', '.join(optional)}. Outputs will "
+                    f"be h264 rather than the h265 default, and an h265 source cannot "
+                    f"keep its codec through the mezzanine"
                 ),
                 fixes=ffmpeg_fixes(),
             )

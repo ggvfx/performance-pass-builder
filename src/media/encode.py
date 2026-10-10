@@ -34,9 +34,6 @@ from src.core.config import (
     H265_CRF,
     H265_PRESET,
     H265_TAG,
-    PRORES_ENCODER,
-    PRORES_PIXEL_FORMAT,
-    PRORES_PROFILE,
 )
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import AudioHandling, OutputFormat, SourceInfo
@@ -51,7 +48,6 @@ ENCODE_SETTINGS = {
     OutputFormat.H264: ("libx264", H264_CRF, H264_PRESET),
     OutputFormat.H265: ("libx265", H265_CRF, H265_PRESET),
     OutputFormat.ALPHA_RLE: (ALPHA_RLE_ENCODER, 0, ""),
-    OutputFormat.PRORES_4444: (PRORES_ENCODER, 0, ""),
 }
 
 
@@ -95,7 +91,7 @@ class OutputWriter(FrameWriter):
         path: Path,
         source: SourceInfo,
         include_audio: bool = True,
-        output_format: OutputFormat = OutputFormat.H264,
+        output_format: OutputFormat = OutputFormat.H265,
     ):
         """
         Args:
@@ -105,7 +101,8 @@ class OutputWriter(FrameWriter):
             source: The probed source — its geometry sizes the frames, and
                 its file supplies the audio.
             include_audio: Whether to carry the audio at all.
-            output_format: H264 for a normal pass, PRORES_4444 to keep alpha.
+            output_format: H265 by default, H264 for software that will not
+                take it, ALPHA_RLE for the face mesh exported on its own.
         """
         codec, crf, preset = ENCODE_SETTINGS[output_format]
 
@@ -164,13 +161,6 @@ class OutputWriter(FrameWriter):
         """
         if self.output_format is OutputFormat.ALPHA_RLE:
             return ["-c:v", self.codec, "-pix_fmt", ALPHA_RLE_PIXEL_FORMAT]
-
-        if self.output_format is OutputFormat.PRORES_4444:
-            return [
-                "-c:v", self.codec,
-                "-profile:v", PRORES_PROFILE,
-                "-pix_fmt", PRORES_PIXEL_FORMAT,
-            ]
 
         mp4 = [
             "-c:v", self.codec,

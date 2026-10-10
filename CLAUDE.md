@@ -45,7 +45,7 @@ function signature and is listed as a non-negotiable below.
 | Frontend | Plain HTML + CSS + vanilla JS | ES modules, no npm, no build step |
 | Serving | FastAPI static files on localhost | User opens it in their own browser |
 | Media | ffmpeg / ffprobe as subprocesses | Frames streamed through pipes, never a Python binding |
-| Output | mp4 — h264 or h265 | What generation software and compositors open. A layer with alpha goes to .mov, because no mp4 codec carries it |
+| Output | mp4 — h265 by default, h264 where needed | What generation software and compositors open. The face mesh alone goes to .mov QuickTime RLE, because no mp4 codec carries alpha |
 | Face tracking | Google MediaPipe Face Landmarker | Local, CPU, a few MB of model |
 | Depth (hosted) | Video Depth Anything on Fal | `fal-ai/depth-anything-video`, the default |
 | Depth (local) | Video Depth Anything, PyTorch | Optional, for machines with a GPU. Later phase. Also the only way to get float depth without a multi-gigabyte download |
@@ -88,8 +88,13 @@ Settled decisions. Do not revisit them without asking.
 3. **When audio is carried, it is carried untouched.** Stream-copied into the
    output, not decoded and re-encoded, so lip sync in the generation is driven
    by exactly what was recorded. Where the source's codec cannot live in the
-   container, it is encoded once at a high bitrate and the sidecar says so. No
-   separation, no pitch shifting — see Deferred.
+   container, it is encoded once as AAC 320k and the sidecar says so.
+
+   **That re-encode is the only lossy step applied to audio anywhere in the
+   app**, and it is announced three times on purpose — by the probe before
+   the job, by the warning on the page, and by the sidecar afterwards.
+   Silently degrading someone's production audio is not a thing to be
+   discreet about. No separation, no pitch shifting — see Deferred.
 
    **Whether to carry it is the artist's choice**, defaulting to yes. There are
    real reasons to leave it out: a pass going to a model that ignores it, or
