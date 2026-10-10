@@ -12,6 +12,25 @@ again.
 
 ---
 
+## Phase 2 — before 2.6
+
+Agreed in discussion rather than taken unattended, recorded here because
+they shape the compositor.
+
+- [x] **Every layer is a file, streamed a frame at a time.** The deciding
+      case was an artist who already has passes: if a layer can be something
+      they already have, every layer may as well be. Resolves what was
+      ARCHITECTURE open question 6.
+- [x] **Straight alpha, not premultiplied.** Premultiplied is the cheaper
+      composite and what drawing on black naturally produces, but PNG and
+      QuickTime RLE conventionally carry straight — so premultiplied data in
+      a straight file means dark fringes in any compositor that believes the
+      label.
+- [x] **A real integration checkpoint after Phase 4**, rather than trusting
+      stand-in clips. TODO 4.11 to 4.13.
+
+---
+
 ## Status: all reviewed, 2026-10-10
 
 Every decision below has been read and agreed, three of them changed in the

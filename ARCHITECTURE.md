@@ -342,6 +342,30 @@ needing modes of their own:
 export path, which is the main reason the stack is worth having in v1 rather
 than later.
 
+**Every layer is a file, read a frame at a time.** Settled rather than
+deferred, and the deciding case is an artist who already has passes and wants
+to mix them with generated ones: if a layer can be something they already
+have, every layer may as well be. It follows that a pass is rendered once and
+reused across as many composites as the artist likes, that any layer can be
+opened and looked at when something is wrong, and that supplied depth needs
+no special path. The grey card and black are the exceptions — a constant is
+synthesised per frame rather than written out.
+
+Memory is not the constraint it sounds like: the compositor holds one frame
+per layer, which is about 8 MB each at 1080p.
+
+**Alpha is straight, not premultiplied, everywhere.** The composite is
+`fg·α + bg·(1−α)`, and the files carry straight alpha because that is what
+PNG and QuickTime RLE conventionally mean.
+
+Premultiplied would actually be the cheaper operation — one multiply instead
+of two — and it is what antialiased drawing on black naturally produces. It
+is rejected anyway, because writing premultiplied data into a file that
+claims to be straight puts dark fringes on every edge in a compositor that
+believes the label. Straight means the array in memory and the bytes on disk
+mean the same thing, with no conversion to get wrong. The unpremultiply
+happens once where the mesh is drawn, not on every composite.
+
 **Every layer is the source's length.** A pass validates its own output when
 it is produced, so the composite inherits that rather than rechecking it.
 
@@ -578,9 +602,5 @@ Decided before the task they affect, not now.
    anything a window will reveal; a 16-bit PNG or half-float EXR sequence is
    the most VFX-native and the most files. Decided by measuring one real shot.
    *Affects Phase 4.*
-6. **How a layer is cached and handed to the compositor.** A rendered video
-   per layer is simple and costs disk; rendering layers on demand into the
-   composite costs time on every output. Probably video for depth, on demand
-   for the mesh, but that is a measurement. *Affects Phase 6.*
-7. **Intel Macs.** MediaPipe 1.1.0 ships wheels for Apple Silicon macOS, not
+6. **Intel Macs.** MediaPipe 1.1.0 ships wheels for Apple Silicon macOS, not
    Intel. *Affects Phase 1, outstanding.*

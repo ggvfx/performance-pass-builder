@@ -248,6 +248,27 @@ needs rethinking.
       clip, then colour map, from the stored field. The only module that
       colormaps. Local and instant, so changing either never calls the model
 
+### Checkpoint — the first real passes, checked end to end
+
+Everything before this is proven against generated clips. This is where a
+real face on real footage goes through the whole chain for the first time,
+and it is a deliberate stop rather than a formality: most of what follows
+assumes these hold.
+
+- [ ] **4.11** One real shot, all the way through: prepare, depth, track,
+      composite, output. Timed at each stage, because nobody yet knows what
+      Prepare costs on a long source
+- [ ] **4.12** The things only a person can see. The mesh lands on the frame
+      the readout claims — against the proxy's burned-in numbers. The alpha
+      edges are clean, with no dark fringing, which is the straight-versus-
+      premultiplied decision actually verified. Two faces crossing. A face
+      leaving frame and coming back. A profile turn
+- [ ] **4.13** The deliverables open where they are going: the mp4 in the
+      generation tool, the mesh layer in Nuke
+
+**Checkpoint done when:** a pass built from real footage has been looked at,
+not merely measured.
+
 ---
 
 ## Phase 5 — The Workflow
