@@ -25,8 +25,7 @@ again.
       segmentation ever produces one. The artist sees an h264/h265 choice;
       ALPHA_RLE is selected by the app for the one export that needs it.
       *Agreed 2026-10-10.*
-- [x] **The default alpha format is QuickTime RLE, not ProRes** *(agreed;
-      Nuke compatibility still to be confirmed — samples in `D:\_repos\_scratch`)* — and this
+- [x] **The default alpha format is QuickTime RLE, not ProRes** — and this
       reversed my first answer. Measured on 48 frames of mesh-like content at
       1080p: ProRes 4444 24.3 MB, RLE 0.5 MB, and the RLE one is lossless. A
       mesh is line art over nothing, which is the worst case for a DCT codec
@@ -35,6 +34,13 @@ again.
       **ProRes stays available**, and would be the right choice for a layer
       carrying photographic content — a segmented region of the plate — where
       RLE would balloon instead.
+
+      *Agreed 2026-10-10, and ProRes then dropped entirely as unused.*
+      **Still to confirm: that Nuke reads qtrle alpha cleanly.** Test files
+      are in `D:\_repos\_scratch` — `alpha_test_qtrle.mov` and
+      `alpha_test_prores4444.mov`, same content. If Nuke is awkward with the
+      RLE one, a PNG or EXR sequence is the fallback: lossless, unambiguous
+      alpha, more files.
 - [x] **Alpha cannot be mp4.** You asked for mp4 where possible and it is,
       for everything except this: neither h264 nor h265 carries alpha in a
       form a compositor can be relied on to open. VP9-in-webm can and is
