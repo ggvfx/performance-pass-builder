@@ -147,6 +147,37 @@ class MediaToolchain:
             raise RuntimeError("ffprobe is not available")
         return self.run([str(self.ffprobe.path), "-hide_banner", *args], timeout=timeout)
 
+    def popen_ffmpeg(self, args: list[str], **streams) -> subprocess.Popen:
+        """
+        Starts ffmpeg as a long-running process with its pipes open.
+
+        Args:
+            args: Arguments after `-hide_banner`.
+            **streams: Passed to Popen — `stdin`, `stdout`, `stderr`.
+
+        Returns:
+            The running process. The caller owns it and must wait on it.
+
+        Raises:
+            RuntimeError: If ffmpeg was never found.
+
+        Notes:
+            Here rather than in `media/frames.py` because this module is the
+            only place a subprocess starts, frame pipes included — CLAUDE.md
+            says so, and the reason is that "which ffmpeg ran, with what
+            arguments" should have one answer.
+
+            Unlike `run`, there is no timeout: a frame pipe is driven by the
+            caller reading or writing it, and a deadline here would kill a
+            long encode that was working perfectly.
+        """
+        if self.ffmpeg is None:
+            raise RuntimeError("ffmpeg is not available")
+
+        command = [str(self.ffmpeg.path), "-hide_banner", *args]
+        logging.debug(f"Opening pipe: {' '.join(command)}")
+        return subprocess.Popen(command, **streams)
+
     # --- ENCODERS ---
 
     def available_encoders(self) -> set[str]:
