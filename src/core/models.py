@@ -105,6 +105,50 @@ class AudioInfo(BaseModel):
     can_stream_copy_to_mp4: bool
 
 
+class OutputFormat(str, Enum):
+    """
+    How a deliverable is written.
+
+    Notes:
+        **mp4 is the preferred container**, because these go to generation
+        software and compositors and it is the one thing everything opens.
+
+        H264 is the safe default: every tool takes it. H265 is the same
+        container at better quality for the size, for anything that accepts
+        it — and plenty still does not, which is why both exist rather than
+        one replacing the other.
+
+        The two alpha formats are the exception to mp4, and only because
+        there is no choice: neither h264 nor h265 carries alpha in any form a
+        compositor can be relied on to open.
+
+        **ALPHA_RLE is the default for a layer with transparency**, which is
+        not the obvious answer. A face mesh is thin lines on nothing — the
+        worst case for a DCT codec and the best case for run-length encoding.
+        Measured on 48 frames of mesh-like content at 1080p, ProRes 4444 came
+        to 24.3 MB and QuickTime RLE to 0.5 MB, and the RLE one is lossless
+        where the ProRes is not. ProRes was also carrying 12-bit precision
+        that does not exist: OpenCV draws the mesh in 8-bit.
+
+        PRORES_4444 stays for the pipeline that insists on it, and would be
+        the right choice for a layer carrying photographic content — a
+        segmented region of the plate, say — where RLE would balloon instead.
+    """
+
+    H264 = "h264"                # .mp4, no alpha. Opens anywhere
+    H265 = "h265"                # .mp4, no alpha. Better for the size
+    ALPHA_RLE = "alpha_rle"      # .mov, alpha, lossless, tiny for line art
+    PRORES_4444 = "prores_4444"  # .mov, alpha, for pipelines that want it
+
+    @property
+    def suffix(self) -> str:
+        return ".mov" if self.carries_alpha else ".mp4"
+
+    @property
+    def carries_alpha(self) -> bool:
+        return self in (OutputFormat.ALPHA_RLE, OutputFormat.PRORES_4444)
+
+
 class AudioHandling(str, Enum):
     """
     What happened to the source's audio on the way into a deliverable.

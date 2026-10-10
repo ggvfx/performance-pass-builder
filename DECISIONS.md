@@ -14,6 +14,28 @@ again.
 
 ## Phase 2
 
+### 2.5b — Output formats (from your two notes)
+
+- [x] **Nothing is ever trimmed; the video length is the length.** Now
+      non-negotiable 2 rather than only a comment in the encoder. `-shortest`
+      is never passed, and no stage pads or clips.
+- [ ] **Four output formats: h264, h265, ALPHA_RLE, PRORES_4444.** mp4 for
+      the first two. h265 carries `-tag:v hvc1`, without which QuickTime and
+      several NLEs refuse the file outright.
+- [ ] **The default alpha format is QuickTime RLE, not ProRes** — and this
+      reversed my first answer. Measured on 48 frames of mesh-like content at
+      1080p: ProRes 4444 24.3 MB, RLE 0.5 MB, and the RLE one is lossless. A
+      mesh is line art over nothing, which is the worst case for a DCT codec
+      and the best for run-length encoding. ProRes was also storing 12-bit
+      precision that does not exist, since OpenCV draws in 8-bit.
+      **ProRes stays available**, and would be the right choice for a layer
+      carrying photographic content — a segmented region of the plate — where
+      RLE would balloon instead.
+- [ ] **Alpha cannot be mp4.** You asked for mp4 where possible and it is,
+      for everything except this: neither h264 nor h265 carries alpha in a
+      form a compositor can be relied on to open. VP9-in-webm can and is
+      tiny, but After Effects will not take it natively.
+
 ### 2.5 — Audio
 
 - [ ] **Audio is muxed in the same ffmpeg pass as the picture**, as a second

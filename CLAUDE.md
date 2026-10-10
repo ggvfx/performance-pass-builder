@@ -45,6 +45,7 @@ function signature and is listed as a non-negotiable below.
 | Frontend | Plain HTML + CSS + vanilla JS | ES modules, no npm, no build step |
 | Serving | FastAPI static files on localhost | User opens it in their own browser |
 | Media | ffmpeg / ffprobe as subprocesses | Frames streamed through pipes, never a Python binding |
+| Output | mp4 — h264 or h265 | What generation software and compositors open. A layer with alpha goes to .mov, because no mp4 codec carries it |
 | Face tracking | Google MediaPipe Face Landmarker | Local, CPU, a few MB of model |
 | Depth (hosted) | Video Depth Anything on Fal | `fal-ai/depth-anything-video`, the default |
 | Depth (local) | Video Depth Anything, PyTorch | Optional, for machines with a GPU. Later phase. Also the only way to get float depth without a multi-gigabyte download |
@@ -75,6 +76,14 @@ Settled decisions. Do not revisit them without asking.
    drift against, and it fails the job rather than being delivered. This
    includes the depth that comes back from a hosted model: it is checked on
    arrival, never trusted.
+
+   **The video length is the length, and nothing is ever trimmed to fit it.**
+   Not the audio, not a supplied depth pass, not anything. Where something
+   does not match, the job says so and stops — `-shortest` is never passed to
+   ffmpeg, and no stage silently pads or clips. A trim is the app deciding
+   that its own convenience outweighs the artist knowing something was wrong,
+   and the whole point of the validator is that nothing gets to make that
+   trade quietly.
 
 3. **When audio is carried, it is carried untouched.** Stream-copied into the
    output, not decoded and re-encoded, so lip sync in the generation is driven
@@ -225,12 +234,17 @@ One folder per job. Whatever the artist asked for, and nothing else:
 
 ```
 <source>_performance/
-    <source>_composite.mp4         the stack as composited
+    <source>_composite.mp4         the stack as composited — h264 or h265
     <source>_depth.mp4             the depth layer alone, if asked for
-    <source>_faces.mov             the face layer alone, with alpha, if asked for
+    <source>_faces.mov             the face layer alone, with its alpha intact
     <source>_landmarks.json        per face, per frame, normalised
     <source>_performance.json      sidecar
 ```
+
+mp4 for anything going to a generation model. The face layer is .mov because
+no mp4 codec carries alpha in a form a compositor reliably opens — QuickTime
+RLE by default, which is lossless and far smaller than ProRes on line art,
+with ProRes 4444 available for a pipeline that wants it.
 
 A single-pass output is the stack with one layer enabled, so these come from
 one code path rather than an export mode each. Each carries the source audio

@@ -110,6 +110,38 @@ PROXY_PRESET = "veryfast"
 
 PROXY_SUFFIX = "_proxy.mp4"
 
+# --- OUTPUT FORMATS ---
+
+# The normal deliverable. crf 18 is visually transparent at this scale, and
+# the pass is a guide for a generation model rather than a master.
+H264_CRF = 18
+H264_PRESET = "medium"
+
+# Same container, better quality for the size, for software that takes it.
+# h265's crf scale is not h264's — roughly 20 here matches 18 there.
+#
+# The hvc1 tag is not cosmetic: without it QuickTime and several NLEs refuse
+# the file outright, and "my mp4 will not open" is a miserable thing to debug
+# from the other end.
+H265_CRF = 20
+H265_PRESET = "medium"
+H265_TAG = "hvc1"
+
+# The default for a layer with transparency. QuickTime RLE is lossless, is
+# one file, and opens in essentially every compositor — and on line art over
+# nothing it is about fifty times smaller than ProRes 4444, measured. argb
+# rather than rgba is simply what qtrle takes.
+ALPHA_RLE_ENCODER = "qtrle"
+ALPHA_RLE_PIXEL_FORMAT = "argb"
+
+# For a layer delivered on its own with its transparency intact. ProRes 4444
+# rather than qtrle or VP9: it is what a compositor opens without thinking,
+# which is the whole point of exporting a layer rather than a composite.
+# Profile 4 is 4444; yuva444p10le is the only alpha format prores_ks offers.
+PRORES_ENCODER = "prores_ks"
+PRORES_PROFILE = "4"
+PRORES_PIXEL_FORMAT = "yuva444p10le"
+
 # --- AUDIO ---
 
 # Codecs an mp4 will carry as a stream copy. Anything else is encoded once at

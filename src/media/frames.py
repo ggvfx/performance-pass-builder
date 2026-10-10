@@ -14,14 +14,15 @@ only place in the app a subprocess begins. This module owns the arguments and
 the arithmetic, and nothing else.
 
 Notes:
-    Frames are `rgb24`: three bytes a pixel, no alpha. Enough for the plate
-    and for depth. **The face mesh layer needs alpha**, so the writer will
-    have to accept `rgba` and the compositor flatten it before output — that
-    belongs with the compositor at 2.6 rather than being guessed at here.
+    Two pixel formats. `RGB` is three bytes a pixel and covers the plate and
+    depth. `RGBA` is four, and exists because the face mesh is the one layer
+    that needs alpha — both to composite over something inside the app, and
+    to be delivered on its own so it can be composited elsewhere.
 """
 
 import logging
 import subprocess
+from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
 
@@ -30,17 +31,30 @@ import numpy as np
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import SourceInfo
 
-# --- PIXEL FORMAT ---
-
-# Three bytes a pixel. The one format every stage agrees on, so a frame never
-# needs converting between modules.
-PIXEL_FORMAT = "rgb24"
-BYTES_PER_PIXEL = 3
+# --- PIXEL FORMATS ---
 
 
-def frame_size_bytes(width: int, height: int) -> int:
+@dataclass(frozen=True)
+class PixelFormat:
+    """
+    How a frame is laid out in the pipe, and what numpy shape that gives.
+
+    Two of them, because the face mesh is the one layer that needs alpha —
+    both to composite over something inside the app, and to be exported on
+    its own for compositing elsewhere.
+    """
+
+    name: str       # What ffmpeg calls it
+    channels: int   # Bytes per pixel, and the array's third dimension
+
+
+RGB = PixelFormat("rgb24", 3)
+RGBA = PixelFormat("rgba", 4)
+
+
+def frame_size_bytes(width: int, height: int, pixel_format: PixelFormat = RGB) -> int:
     """How many bytes one frame occupies in the pipe."""
-    return width * height * BYTES_PER_PIXEL
+    return width * height * pixel_format.channels
 
 
 # --- READING ---
@@ -63,17 +77,31 @@ class FrameReader:
         either inexact or slower than this.
     """
 
-    def __init__(self, toolchain: MediaToolchain, path: Path, width: int, height: int):
+    def __init__(
+        self,
+        toolchain: MediaToolchain,
+        path: Path,
+        width: int,
+        height: int,
+        pixel_format: PixelFormat = RGB,
+    ):
         self.toolchain = toolchain
         self.path = path
         self.width = width
         self.height = height
+        self.pixel_format = pixel_format
 
         self.frames_read = 0
         self._process: subprocess.Popen | None = None
 
     @classmethod
-    def for_source(cls, toolchain: MediaToolchain, source: SourceInfo, path: Path | None = None):
+    def for_source(
+        cls,
+        toolchain: MediaToolchain,
+        source: SourceInfo,
+        path: Path | None = None,
+        pixel_format: PixelFormat = RGB,
+    ):
         """
         A reader sized from a probed source.
 
@@ -83,7 +111,9 @@ class FrameReader:
             path: What to read, when it is not the source itself — the
                 mezzanine usually, which has the same geometry.
         """
-        return cls(toolchain, path or Path(source.path), source.width, source.height)
+        return cls(
+            toolchain, path or Path(source.path), source.width, source.height, pixel_format
+        )
 
     # --- LIFECYCLE ---
 
@@ -94,7 +124,7 @@ class FrameReader:
                 "-i", str(self.path),
                 "-map", "0:v:0",
                 "-f", "rawvideo",
-                "-pix_fmt", PIXEL_FORMAT,
+                "-pix_fmt", self.pixel_format.name,
                 "-",
             ],
             stdout=subprocess.PIPE,
@@ -159,7 +189,7 @@ class FrameReader:
         if self._process is None or self._process.stdout is None:
             raise RuntimeError("FrameReader must be used as a context manager")
 
-        wanted = frame_size_bytes(self.width, self.height)
+        wanted = frame_size_bytes(self.width, self.height, self.pixel_format)
         raw = self._process.stdout.read(wanted)
 
         if not raw:
@@ -172,7 +202,9 @@ class FrameReader:
             )
 
         self.frames_read += 1
-        return np.frombuffer(raw, dtype=np.uint8).reshape(self.height, self.width, 3)
+        return np.frombuffer(raw, dtype=np.uint8).reshape(
+            self.height, self.width, self.pixel_format.channels
+        )
 
 
 # --- WRITING ---
@@ -200,6 +232,7 @@ class FrameWriter:
         codec: str = "libx264",
         crf: int = 18,
         preset: str = "medium",
+        pixel_format: PixelFormat = RGB,
     ):
         self.toolchain = toolchain
         self.path = path
@@ -209,6 +242,7 @@ class FrameWriter:
         self.codec = codec
         self.crf = crf
         self.preset = preset
+        self.pixel_format = pixel_format
 
         self.frames_written = 0
         self._process: subprocess.Popen | None = None
@@ -225,7 +259,7 @@ class FrameWriter:
         """
         return [
             "-f", "rawvideo",
-            "-pix_fmt", PIXEL_FORMAT,
+            "-pix_fmt", self.pixel_format.name,
             "-s", f"{self.width}x{self.height}",
             "-r", f"{self.rate.numerator}/{self.rate.denominator}",
             "-i", "-",
@@ -321,7 +355,7 @@ class FrameWriter:
         if self._process is None or self._process.stdin is None:
             raise RuntimeError("FrameWriter must be used as a context manager")
 
-        expected = (self.height, self.width, 3)
+        expected = (self.height, self.width, self.pixel_format.channels)
         if frame.shape != expected:
             raise ValueError(f"Frame {self.frames_written} is {frame.shape}, expected {expected}")
         if frame.dtype != np.uint8:

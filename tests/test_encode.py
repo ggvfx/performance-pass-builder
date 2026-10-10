@@ -17,9 +17,9 @@ import numpy as np
 import pytest
 
 from src.core.ffmpeg_tools import MediaToolchain
-from src.core.models import AudioHandling
+from src.core.models import AudioHandling, OutputFormat
 from src.media.encode import OutputWriter, plan_audio
-from src.media.frames import FrameReader
+from src.media.frames import RGBA, FrameReader
 from src.media.probe import SourceProbe
 
 needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg is not installed")
@@ -223,3 +223,168 @@ def test_the_picture_delivered_is_the_frames_that_were_piped_in(toolchain, probe
 
     print(f"centre pixel of the delivered picture: {tuple(back[source.height // 2, 10])}")
     assert back[source.height // 2, 10][0] > 150, "the delivered picture is not the frames written"
+
+
+# --- ALPHA, FOR COMPOSITING ELSEWHERE ---
+
+
+def test_the_formats_name_their_own_containers():
+    """
+    mp4 for anything going to generation software, .mov only where alpha
+    forces it. A wrong suffix is a file that will not open.
+    """
+    assert OutputFormat.H264.suffix == ".mp4"
+    assert OutputFormat.H265.suffix == ".mp4"
+    assert OutputFormat.ALPHA_RLE.suffix == ".mov"
+    assert OutputFormat.PRORES_4444.suffix == ".mov"
+
+    assert OutputFormat.H264.carries_alpha is False
+    assert OutputFormat.H265.carries_alpha is False
+    assert OutputFormat.ALPHA_RLE.carries_alpha is True
+    assert OutputFormat.PRORES_4444.carries_alpha is True
+
+
+@needs_ffmpeg
+def test_h265_is_tagged_so_quicktime_will_open_it(toolchain, probe, clips, tmp_path):
+    """
+    Not cosmetic. Without hvc1, QuickTime and several NLEs refuse the file
+    outright, and "my mp4 will not open" is miserable to debug from the far
+    end of a hand-off.
+    """
+    source = probe.probe(clips["film24"])
+    writer = OutputWriter(toolchain, tmp_path / "out.mp4", source, output_format=OutputFormat.H265)
+
+    arguments = writer.arguments()
+    assert "libx265" in arguments
+    assert "hvc1" in arguments
+
+
+@needs_ffmpeg
+def test_h265_really_writes_h265(toolchain, probe, clips, tmp_path):
+    source = probe.probe(clips["film24"])
+    output = tmp_path / "h265_out.mp4"
+
+    frame = np.zeros((source.height, source.width, 3), dtype=np.uint8)
+    with OutputWriter(
+        toolchain, output, source, include_audio=False, output_format=OutputFormat.H265
+    ) as writer:
+        for _ in range(source.frame_count):
+            writer.write(frame)
+
+    written = probe.probe(output)
+    assert written.codec == "hevc"
+    assert written.frame_count == source.frame_count
+
+
+@needs_ffmpeg
+def test_the_default_alpha_format_is_lossless_and_small(toolchain, probe, clips, tmp_path):
+    """
+    A mesh is line art over nothing: the worst case for a DCT codec and the
+    best case for run-length encoding. Measured on real content, ProRes came
+    to 24.3 MB against RLE's 0.5 MB for the same 48 frames — and the RLE one
+    is lossless. This asserts the gap rather than the exact figures.
+    """
+    source = probe.probe(clips["film24"])
+
+    frame = np.zeros((source.height, source.width, 4), dtype=np.uint8)
+    frame[100:140, 50:270] = (80, 160, 255, 255)  # a few opaque lines, the rest clear
+
+    sizes = {}
+    for alpha_format in (OutputFormat.ALPHA_RLE, OutputFormat.PRORES_4444):
+        output = tmp_path / f"size_{alpha_format.value}.mov"
+        with OutputWriter(
+            toolchain, output, source, include_audio=False, output_format=alpha_format
+        ) as writer:
+            for _ in range(source.frame_count):
+                writer.write(frame)
+        sizes[alpha_format] = output.stat().st_size
+
+    print({k.value: f"{v / 1e6:.2f} MB" for k, v in sizes.items()})
+    assert sizes[OutputFormat.ALPHA_RLE] < sizes[OutputFormat.PRORES_4444]
+
+
+@needs_ffmpeg
+def test_an_alpha_output_pipes_four_channels(toolchain, probe, clips, tmp_path):
+    """
+    Three would silently drop the transparency before ffmpeg ever saw it,
+    which no check on the finished file would attribute to the right cause.
+    """
+    source = probe.probe(clips["film24"])
+    for alpha_format in (OutputFormat.ALPHA_RLE, OutputFormat.PRORES_4444):
+        writer = OutputWriter(
+            toolchain, tmp_path / "mesh.mov", source, output_format=alpha_format
+        )
+        assert writer.pixel_format is RGBA, alpha_format
+        assert "rgba" in writer.arguments(), alpha_format
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("alpha_format", [OutputFormat.ALPHA_RLE, OutputFormat.PRORES_4444])
+def test_the_alpha_channel_actually_survives_the_round_trip(
+    toolchain, probe, clips, tmp_path, alpha_format
+):
+    """
+    The point of the whole format. A frame written half opaque and half
+    transparent has to read back the same way, or what leaves the app is a
+    mesh burned onto black — the opposite of useful in a compositor.
+    """
+    source = probe.probe(clips["film24"])
+    output = tmp_path / f"mesh_{alpha_format.value}.mov"
+
+    frame = np.zeros((source.height, source.width, 4), dtype=np.uint8)
+    frame[:, :, 1] = 255                       # green everywhere
+    frame[:, : source.width // 2, 3] = 255     # opaque on the left, clear on the right
+
+    with OutputWriter(
+        toolchain, output, source, include_audio=False, output_format=alpha_format
+    ) as writer:
+        for _ in range(source.frame_count):
+            writer.write(frame)
+
+    with FrameReader(
+        toolchain, output, source.width, source.height, pixel_format=RGBA
+    ) as reader:
+        back = reader.read()
+
+    left_alpha = int(back[source.height // 2, 10, 3])
+    right_alpha = int(back[source.height // 2, source.width - 10, 3])
+
+    print(f"alpha: left {left_alpha}, right {right_alpha}")
+    assert left_alpha > 200, "the opaque half did not stay opaque"
+    assert right_alpha < 55, "the transparent half came back opaque — alpha was lost"
+
+
+@needs_ffmpeg
+def test_an_alpha_output_is_still_exactly_the_source_length(toolchain, probe, clips, tmp_path):
+    """The length rule does not bend for a different format."""
+    source = probe.probe(clips["pal25"])
+    output = tmp_path / "mesh_length.mov"
+
+    frame = np.zeros((source.height, source.width, 4), dtype=np.uint8)
+    with OutputWriter(
+        toolchain, output, source, include_audio=False, output_format=OutputFormat.PRORES_4444
+    ) as writer:
+        for _ in range(source.frame_count):
+            writer.write(frame)
+
+    assert probe.probe(output).frame_count == source.frame_count
+
+
+@needs_ffmpeg
+def test_a_mesh_export_can_still_carry_the_audio_if_asked(toolchain, probe, clips, tmp_path):
+    """
+    Nothing about alpha stops the audio coming along — the two choices are
+    independent, and someone exporting a layer may still want sync reference.
+    """
+    source = probe.probe(clips["with_audio"])
+    output = tmp_path / "mesh_with_audio.mov"
+
+    frame = np.zeros((source.height, source.width, 4), dtype=np.uint8)
+    with OutputWriter(
+        toolchain, output, source, include_audio=True, output_format=OutputFormat.PRORES_4444
+    ) as writer:
+        for _ in range(source.frame_count):
+            writer.write(frame)
+
+    assert writer.audio_handling is AudioHandling.COPIED
+    assert probe.probe(output).audio is not None
