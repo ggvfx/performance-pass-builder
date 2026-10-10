@@ -51,18 +51,21 @@ again.
 
 ### 2.5 — Audio
 
-- [ ] **Audio is muxed in the same ffmpeg pass as the picture**, as a second
+- [x] **Audio is muxed in the same ffmpeg pass as the picture**, as a second
       input, rather than written video-first and muxed after. One pass instead
       of writing the video twice. Cost: `-map 0:v:0` must be explicit, because
       with two inputs ffmpeg could otherwise pick the *source's* picture and
       silently deliver the original footage. There is a test for exactly that.
+      *Agreed 2026-10-10, and gathered with every other audio caveat into one
+      section of ARCHITECTURE.md.*
 - [x] **`-shortest` is deliberately not used.** It would trim the picture to
       the audio, and a pass that is not exactly the source's length is the one
       thing this project will not deliver. If the two disagree, the validator
       at 2.7 is where it surfaces — loudly.
-- [ ] **`AudioHandling` is recorded, not inferred**: copied, encoded, omitted,
+- [x] **`AudioHandling` is recorded, not inferred**: copied, encoded, omitted,
       or none. Three of those produce files that look identical, so the
-      sidecar is the only place the difference survives.
+      sidecar is the only place the difference survives. *Agreed 2026-10-10;
+      written up in ARCHITECTURE.md's audio section.*
 - [x] **The fallback is aac at 320k**, kept — but it is now stated plainly as
       **the only lossy step applied to audio anywhere in the app**, in config,
       in the probe's warning, and in non-negotiable 3. *Agreed 2026-10-10.*
@@ -86,7 +89,7 @@ again.
       a 10- or 16-bit output later is a format added rather than a rewrite.
       Nothing wants it yet — Seedance reads a depth pass as a greyscale
       picture. *Agreed 2026-10-10.*
-- [ ] **A short read ends the stream rather than raising.** ffmpeg closing the
+- [x] **A short read ends the stream rather than raising.** ffmpeg closing the
       pipe is how a decode finishes normally. A *partial* frame does raise,
       because that is a truncated read rather than an end.
 - [x] **The validator owns the frame-count check, not the reader.** One
