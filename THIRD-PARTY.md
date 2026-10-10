@@ -28,6 +28,15 @@ the installed build was configured.
 
 ## Prior work
 
+The foundations of this app are ported from
+**[minicut-shot-detector](https://github.com/ggvfx/minicut-shot-detector)**,
+also by this author and also MIT: the ffmpeg toolchain, the timecode engine,
+the source probe, the all-intra mezzanine, the numbered review proxy, the
+three-state dependency panel, the server-side path picker and the
+frame-accurate browser player. Ported at commit `6dcbd60`, trimmed to what this
+project uses and modernised for Python 3.12. Each ported module names its
+origin in its own docstring.
+
 The idea of drawing a MediaPipe face mesh over depth as guidance for Seedance,
 and the starting mesh colours, come from
 [Genjutsu Open Source Workflow](https://github.com/sirioberati/Genjustsu-Open-Source-Workflow)
