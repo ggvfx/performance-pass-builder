@@ -13,6 +13,27 @@ again.
 
 ---
 
+## Phase 3 — cleanup after 3.4
+
+- [ ] **`tracking.py` split: `face_geometry.py` now holds the arithmetic.**
+      701 lines was over the threshold, and the file held two different
+      things — running a model, and working out where a face is. The second
+      needs no MediaPipe, no ffmpeg and no footage, so its tests run in
+      0.12s instead of waiting on a 240-frame track. Tracking is 504 lines
+      now, still over 400 but one class doing two runs.
+- [ ] **`if region` became `if region is not None`.** A pydantic model is
+      always truthy so the behaviour was already right, but the code read as
+      though an empty box might be falsy.
+
+**Reviewed and left alone:**
+
+- No new dead code. The only unreferenced names are pydantic validators and
+  FastAPI handlers, which frameworks call by other means, plus
+  `DepthColormap`, which is still an early contract for 4.10.
+- Dependency direction still holds in every direction.
+- The app still serves, both routes answer, and the environment panel reads
+  `degraded` for the missing Fal key with everything else green.
+
 ## Phase 3 — 3.4
 
 - [ ] **The search region crops the picture rather than filtering the

@@ -167,9 +167,10 @@ they have no minicut ancestor at all:
 
 | Module | Why there was nothing to take |
 |---|---|
-| `src/performance/model_file.py` | minicut needed no model file. The download, the pinned SHA-256 and the cache are new |
 | `src/composite/compositor.py` | minicut cut video up; it never combined layers |
 | `src/performance/tracking.py` | minicut found shot boundaries and never looked at a face |
+| `src/performance/face_geometry.py` | Same reason — there were no faces to place |
+| `src/performance/model_file.py` | minicut needed no model file |
 
 ## Checklist
 

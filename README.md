@@ -7,12 +7,13 @@ actor and the background while keeping the performance.
 
 ## Project Status
 
-🚦 **Phase 2 complete.** A source goes in and an output of exactly its length
-comes out with its audio, composited from layers and checked by the validator
-rather than by eye. Nothing is tracked or generated yet — that is Phase 3.
-Most of the foundation is ported from
-[minicut-shot-detector](https://github.com/ggvfx/minicut-shot-detector) rather
-than rewritten — see [PORTING.md](PORTING.md).
+🚦 **Phase 2 complete, Phase 3 half done.** A source goes in and an output of
+exactly its length comes out with its audio, composited from layers and
+checked by the validator rather than by eye. Faces are now tracked on real
+footage — seeded from a box, followed forwards and backwards. Nothing is
+generated yet; depth is Phase 4. Most of the foundation is ported from
+[minicut-shot-detector](https://github.com/ggvfx/minicut-shot-detector)
+rather than rewritten — see [PORTING.md](PORTING.md).
 
 **Works now:** the app reports what it needs in three states with a copyable
 fix for each, browses this machine for a source, and lays out the whole
@@ -25,13 +26,21 @@ streamed frame by frame through ffmpeg pipes, composited from a stack of
 layers with straight alpha, and written back at exactly its original length
 with its audio carried untouched — or deliberately left out, which is checked
 rather than assumed. Every deliverable is validated against its source and
-recorded in a sidecar, whether it passed or failed. 305 tests.
+recorded in a sidecar, whether it passed or failed.
 
-All of it proven against clips ffmpeg generates. Whether it is right on real
-footage is a deliberate checkpoint later, because some of it only a person
-can see.
+And the first half of Phase 3: the MediaPipe model downloaded on first use
+and checked against a pinned hash, a face tracked on every frame of real
+footage, a face seeded from a box and followed forwards to the end and
+backwards to frame 0, and a search region that keeps the track on the face it
+was given rather than whoever wanders past. 407 tests.
 
-**Next milestone:** Phase 3 — face tracking.
+The foundation was proven against clips ffmpeg generates; the tracking is
+proven against real footage, kept out of the repository. Whether the whole
+chain is right end to end is a deliberate checkpoint later, because some of
+it only a person can see.
+
+**Next milestone:** the rest of Phase 3 — several faces at once, several
+seeds per face, smoothing, and the mesh rendered to its own layer.
 
 Design in [ARCHITECTURE.md](ARCHITECTURE.md), settled decisions in
 [CLAUDE.md](CLAUDE.md), task order in [TODO.md](TODO.md).

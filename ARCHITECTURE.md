@@ -271,11 +271,25 @@ the picker and the pipeline.
 face, so two people in frame cannot be confused for each other. Tracked in
 segments between seeds: backward from the first to frame 0, forward from each
 to the next. MediaPipe's video mode needs rising timestamps, so a backward run
-is its own tracker fed the frames in reverse. Each frame, the tracker looks
-inside a padded box around where the face was on the previous frame. A frame
-where a face is not found is **recorded, not guessed**, and every frame
-records which seed produced it — that is what lets the timeline show where
-another seed is needed.
+is its own tracker fed the frames in reverse. A frame where a face is not
+found is **recorded, not guessed**, and every frame records which seed
+produced it — that is what lets the timeline show where another seed is
+needed.
+
+Each frame the picture is **cropped** to a region around where the face was
+last, and only that is searched: a face wandering into shot is not a
+candidate because it is not in the picture handed to the model. The region is
+grown to at least MediaPipe's own 192-pixel working size first, so cropping
+tight to a distant face does not hand the model a magnified thumbnail. While
+a face is missing the region stays put — a blink recovers, someone who leaves
+and returns elsewhere wants another seed.
+
+Reading backwards is the awkward part, because a decoder only runs forwards.
+`frames_backwards` buys frames in memory-bounded windows and hands them back
+in reverse, which means seeking, which is **only exact on the all-intra
+mezzanine**. That is the sharpest edge in the pass: on long-GOP video a seek
+lands on the wrong frame and every landmark after it is attributed to the
+wrong picture, with nothing downstream able to tell.
 
 **Smooth** — `smoothing.py`. A One Euro filter per landmark coordinate:
 strong smoothing when a point is still, little when it moves fast. Resets
@@ -502,7 +516,8 @@ the restructure.
 | `src/performance/depth.py` | The depth pass: request, validate, store, render its layer |
 | `src/performance/selection.py` | Reading and checking `selection.json` |
 | `src/performance/model_file.py` | Downloading and verifying the MediaPipe model |
-| `src/performance/tracking.py` | `FaceTracker` |
+| `src/performance/tracking.py` | `FaceTracker` — the baseline run and seeded runs |
+| `src/performance/face_geometry.py` | Where a face is: search regions, crop mapping, choosing between detections |
 | `src/performance/smoothing.py` | The One Euro filter |
 | `src/performance/mesh.py` | Rendering the face layer |
 | `src/performance/validator.py` | The checks that block an output |
