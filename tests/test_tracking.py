@@ -474,6 +474,107 @@ def test_a_face_found_nowhere_reports_one_whole_gap(tracker, toolchain, clips):
     assert report.segments == [], "nothing was tracked, so no seed covered anything"
 
 
+# --- A REAL GAP ---
+
+# Everything above about gaps is checked against arrays built by hand.
+# `walks_in_and_turns_away.mp4` is the first clip where the tracker actually
+# loses the face: she starts far off and turned away, and arrives in a medium
+# shot. The baseline finds her on 89 frames of 240.
+
+
+@pytest.fixture(scope="session")
+def gap_source(toolchain, with_gap):
+    return SourceProbe(toolchain).probe(with_gap)
+
+
+@pytest.fixture(scope="session")
+def gap_mezzanine(toolchain, gap_source, tmp_path_factory) -> Path:
+    from src.media.mezzanine import MezzanineBuilder
+
+    return MezzanineBuilder(toolchain).build(
+        gap_source, tmp_path_factory.mktemp("gap") / "m.mov"
+    )
+
+
+@pytest.fixture(scope="session")
+def gap_track(tracker, gap_source, gap_mezzanine) -> FaceTrack:
+    return tracker.track_every_frame(gap_source, label="Girl", path=gap_mezzanine)
+
+
+def test_a_lost_face_is_a_gap_in_a_full_length_track(gap_source, gap_track):
+    """
+    The rule everything downstream depends on. She is not found for most of
+    this clip, and the track is still exactly as long as the source — a gap
+    in it, never a shorter track.
+    """
+    print(f"tracked {int(gap_track.tracked.sum())}/{gap_source.frame_count}")
+    assert gap_track.frame_count == gap_source.frame_count
+    assert not gap_track.tracked.all(), "this clip is only useful if she is lost"
+    assert gap_track.gaps(), "frames are missing but no gap was reported"
+
+
+def test_a_real_gap_is_left_empty_rather_than_guessed(gap_track):
+    """
+    Non-negotiable: a mesh invented over a missing face looks like a tracked
+    face and is wrong. Checked here against a gap the tracker actually
+    produced rather than one written into an array by a test.
+    """
+    missing = ~gap_track.tracked
+
+    assert np.isnan(gap_track.landmarks[missing]).all()
+    assert (gap_track.seeded_by[missing] == NOT_SEEDED).all()
+    assert gap_track.landmarks_on(int(np.flatnonzero(missing)[0])) is None
+
+
+def test_a_real_track_with_a_gap_still_satisfies_the_contract(gap_track):
+    """validate_shape has never met a gap it did not have to be handed."""
+    gap_track.validate_shape()
+
+
+def test_the_report_counts_a_real_gap(gap_source, gap_track):
+    report = report_for([gap_track], gap_source.frame_count).faces[0]
+
+    print(f"{report.frames_missing} missing, longest {report.longest_gap_frames}")
+    assert report.frames_tracked + report.frames_missing == gap_source.frame_count
+    assert report.longest_gap_frames == max(gap.frame_count for gap in gap_track.gaps())
+    assert report.frames_missing == sum(gap.frame_count for gap in gap_track.gaps())
+
+
+def test_seeding_late_and_tracking_back_recovers_far_more_than_the_baseline(
+    tracker, gap_source, gap_mezzanine, gap_track
+):
+    """
+    What the backward run and the search region are *for*, on footage that
+    actually needs them.
+
+    Searching the whole frame from a standing start finds her on 89 frames.
+    Seeding where she is clearest and working outwards finds roughly twice
+    that, because the search region carries a known-good position into
+    frames where a cold detector sees nothing worth calling a face.
+    """
+    clearest = int(np.flatnonzero(gap_track.tracked)[-1]) - 39
+    points = gap_track.landmarks_on(clearest)
+    seed = Seed(
+        frame=clearest,
+        box=NormalisedBox(
+            left=max(0.0, float(points[:, 0].min()) - 0.02),
+            top=max(0.0, float(points[:, 1].min()) - 0.03),
+            right=min(1.0, float(points[:, 0].max()) + 0.02),
+            bottom=min(1.0, float(points[:, 1].max()) + 0.03),
+        ),
+    )
+
+    seeded = tracker.track_from_seed(gap_source, seed, label="Girl", path=gap_mezzanine)
+
+    baseline_found = int(gap_track.tracked.sum())
+    seeded_found = int(seeded.tracked.sum())
+    print(f"baseline {baseline_found}, seeded {seeded_found} of {gap_source.frame_count}")
+
+    assert seeded.frame_count == gap_source.frame_count
+    assert seeded_found > baseline_found * 1.5, "seeding bought little over a cold search"
+    seeded.validate_shape()
+
+
 # --- WHEN THE LENGTHS DISAGREE ---
 
 

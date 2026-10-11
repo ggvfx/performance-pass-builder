@@ -69,6 +69,7 @@ MEDIA_DIRECTORY = Path(__file__).parent / "media"
 # name -> (file, what it is, and the geometry a test may rely on)
 FACE_CLIP_SPECS = {
     "one_face": ("one_face_medium.mp4", 1920, 1080, "24/1", 240),
+    "with_gap": ("walks_in_and_turns_away.mp4", 1920, 1080, "24/1", 240),
 }
 
 
@@ -110,6 +111,22 @@ def one_face(face_clips) -> Path:
         pytest.skip(f"{FACE_CLIP_SPECS['one_face'][0]} is not in {MEDIA_DIRECTORY}")
 
     return face_clips["one_face"]
+
+
+@pytest.fixture(scope="session")
+def with_gap(face_clips) -> Path:
+    """
+    A face the tracker genuinely loses: a figure walking in from a wide shot
+    who turns to look behind her before arriving in a medium shot.
+
+    The clip that matters for gaps. `one_face_medium.mp4` tracks 240 of 240,
+    so until this arrived every NaN row and every `FrameRange` of absence had
+    only ever been tested against arrays built by hand.
+    """
+    if "with_gap" not in face_clips:
+        pytest.skip(f"{FACE_CLIP_SPECS['with_gap'][0]} is not in {MEDIA_DIRECTORY}")
+
+    return face_clips["with_gap"]
 
 
 @pytest.fixture(scope="session")

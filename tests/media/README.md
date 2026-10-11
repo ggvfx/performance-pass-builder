@@ -24,6 +24,7 @@ tested against a face, so these few clips are the exception.
 | File | What it is | What it exercises |
 |------|-----------|-------------------|
 | `one_face_medium.mp4` | 1920x1080, 24/1, 240 frames, h264 + AAC. One person, medium close-up, frontal, evenly lit, near-static camera with a slight push in | The ordinary case. Detection, a single track running the length of the shot, landmarks that stay put |
+| `walks_in_and_turns_away.mp4` | 1920x1080, 24/1, 240 frames, h264 + AAC. A figure walks toward camera from a wide shot, turns to look behind her, arrives in a medium shot | **The hard case, and the only one with a real gap.** The baseline finds her on 89 of 240 frames; seeding late and tracking back finds 188. Gap handling, backward recovery, and a face both too small and too turned away to detect |
 
 **`WANTED.md` in this folder is the gathering list** — every clip still
 wanted, in priority order, with what each one proves and how to make it. Tier
