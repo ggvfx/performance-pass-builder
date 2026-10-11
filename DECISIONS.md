@@ -13,6 +13,32 @@ again.
 
 ---
 
+## Phase 3 — what the new footage found
+
+- [ ] **A track can transfer to the wrong face, and I have left it broken
+      with an `xfail` test rather than fixing it quietly.** When the seeded
+      officer walks out of frame, the search region stays put, the other
+      officer walks into it, and he inherits the track. The mesh lands on the
+      wrong person and nothing says so.
+
+      Three ways to fix it and they behave differently on real footage —
+      require a recovered face to overlap the last known box; give up on the
+      track after N missed frames; cap how far a face may jump in a frame —
+      so it is **3.10** and your call rather than mine. The failing test
+      means whichever is chosen has something to prove.
+- [ ] **Two clips in, both kept, both gitignored.**
+      `walks_in_and_turns_away.mp4` is the first real gap: 151 frames of it,
+      against a cold baseline of 89/240 and a seeded 188/240.
+      `two_faces_cross_and_exit.mp4` is the hardest clip here — a genuine
+      crossing, an exit, profiles, night neon, and detection flickering
+      throughout.
+- [ ] **The confidence thresholds now have something to tune against.** On
+      the desert clip the tracker does not find a face at frame 120 that
+      looks perfectly findable by eye, and on the night clip detection
+      flickers on 24 frames of 240. Both are at MediaPipe's default 0.5.
+      Worth a pass once the mesh is visible at 3.8, not before — it is a
+      judgement that needs looking at, not measuring.
+
 ## Phase 3 — cleanup after 3.4
 
 - [ ] **`tracking.py` split: `face_geometry.py` now holds the arithmetic.**

@@ -70,6 +70,7 @@ MEDIA_DIRECTORY = Path(__file__).parent / "media"
 FACE_CLIP_SPECS = {
     "one_face": ("one_face_medium.mp4", 1920, 1080, "24/1", 240),
     "with_gap": ("walks_in_and_turns_away.mp4", 1920, 1080, "24/1", 240),
+    "two_faces": ("two_faces_cross_and_exit.mp4", 1920, 1080, "24/1", 240),
 }
 
 
@@ -127,6 +128,24 @@ def with_gap(face_clips) -> Path:
         pytest.skip(f"{FACE_CLIP_SPECS['with_gap'][0]} is not in {MEDIA_DIRECTORY}")
 
     return face_clips["with_gap"]
+
+
+@pytest.fixture(scope="session")
+def two_faces_clip(face_clips) -> Path:
+    """
+    Two people who cross, in bad light, one of whom leaves.
+
+    Two officers talking at night under neon. They turn to each other, so
+    both spend time in profile; the one on the right walks left across the
+    frame, past the other, and out. Detection flickers throughout — two
+    faces on 89 frames, one on 127, none on 24.
+
+    The hardest clip here, and the only one with a genuine crossing.
+    """
+    if "two_faces" not in face_clips:
+        pytest.skip(f"{FACE_CLIP_SPECS['two_faces'][0]} is not in {MEDIA_DIRECTORY}")
+
+    return face_clips["two_faces"]
 
 
 @pytest.fixture(scope="session")

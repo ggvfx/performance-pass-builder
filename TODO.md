@@ -244,6 +244,16 @@ a small face in a wide shot. Those are what 3.4 onward actually need.
       per-face visibility, so a three-person shot does not fill the stack. This
       is what lets the mesh be output alone, reordered, or left out of a
       composite without re-tracking
+- [ ] **3.10** **A recovered face must be shown to be the same face.** Found
+      by `two_faces_cross_and_exit.mp4`: when the seeded officer walks out of
+      frame, the search region stays where it was, the other officer walks
+      into it, and he inherits the track. The mesh then lands on the wrong
+      person with nothing indicating it — which is worse than losing him,
+      because it looks like success. Options, cheapest first: require a
+      recovered face to overlap the last known box; cap how long the region
+      may wait before the track is declared ended; cap how far a face may
+      jump in one frame. There is an `xfail` test holding the failure in
+      place, so whatever is chosen has something to satisfy
 - [ ] **3.9** `landmarks.json` and the per-face tracking report, including
       where each face's seeds are and which frames came from which
 

@@ -575,6 +575,127 @@ def test_seeding_late_and_tracking_back_recovers_far_more_than_the_baseline(
     seeded.validate_shape()
 
 
+# --- TWO REAL FACES, CROSSING ---
+
+# `two_faces_cross_and_exit.mp4`. Two officers at night: both turn to each
+# other so both spend time in profile, and the one on the right walks left
+# across the frame, past the other, and out of shot. Detection flickers all
+# the way through.
+#
+# The side-by-side clip above proves a seed picks one of two faces. This one
+# asks the harder question, which is whether it keeps the right one.
+
+# Where each officer's face sits on frame 0.
+LEFT_OFFICER = NormalisedBox(left=0.24, top=0.22, right=0.42, bottom=0.62)
+RIGHT_OFFICER = NormalisedBox(left=0.56, top=0.22, right=0.74, bottom=0.62)
+
+
+@pytest.fixture(scope="session")
+def crossing_source(toolchain, two_faces_clip):
+    return SourceProbe(toolchain).probe(two_faces_clip)
+
+
+@pytest.fixture(scope="session")
+def crossing_mezzanine(toolchain, crossing_source, tmp_path_factory) -> Path:
+    from src.media.mezzanine import MezzanineBuilder
+
+    return MezzanineBuilder(toolchain).build(
+        crossing_source, tmp_path_factory.mktemp("crossing") / "m.mov"
+    )
+
+
+def middles(track, frame_count):
+    """Where the face sat across the frames it was found on."""
+    return {
+        frame: float(track.landmarks_on(frame)[:, 0].mean())
+        for frame in range(frame_count)
+        if track.tracked[frame]
+    }
+
+
+def test_the_officer_who_stays_is_held_throughout(
+    tracker, crossing_source, crossing_mezzanine
+):
+    """
+    He is in profile for much of the clip, under neon, with another face
+    crossing in front of him and leaving. The track should stay on him.
+    """
+    track = tracker.track_from_seed(
+        crossing_source,
+        Seed(frame=0, box=LEFT_OFFICER),
+        label="Left",
+        path=crossing_mezzanine,
+    )
+
+    where = middles(track, crossing_source.frame_count)
+    print(
+        f"found on {len(where)}/{crossing_source.frame_count}, "
+        f"x {min(where.values()):.2f}-{max(where.values()):.2f}"
+    )
+
+    assert len(where) > crossing_source.frame_count * 0.9, "lost him too often"
+    assert max(where.values()) < 0.55, "the track wandered onto the other officer"
+
+
+def test_flickering_detection_is_recorded_as_gaps_not_smoothed_over(
+    tracker, crossing_source, crossing_mezzanine
+):
+    """
+    The other shape of absence. The desert clip is one long gap; this one is
+    intermittent, which `FaceTrack.gaps` exists to tell apart — one long
+    absence and shimmer throughout need different answers from the artist.
+    """
+    track = tracker.track_from_seed(
+        crossing_source,
+        Seed(frame=0, box=RIGHT_OFFICER),
+        label="Right",
+        path=crossing_mezzanine,
+    )
+
+    gaps = track.gaps()
+    print(f"{len(gaps)} gaps, longest {max(g.frame_count for g in gaps)}")
+
+    assert len(gaps) > 1, "this clip flickers; one gap would mean they were merged"
+    assert track.frame_count == crossing_source.frame_count
+    track.validate_shape()
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "Known limitation. When the seeded face leaves the frame, the search "
+        "region stays where it was, and the other officer walks into it and "
+        "takes the track. Nothing currently asks whether a recovered face is "
+        "the same face. See DECISIONS.md."
+    ),
+)
+def test_a_track_does_not_transfer_to_another_face_after_its_own_leaves(
+    tracker, crossing_source, crossing_mezzanine
+):
+    """
+    The right officer walks left across the frame and out. After that there
+    is no right officer to track, so the honest answer is a gap to the end.
+
+    What happens instead is that the remaining officer is sitting inside the
+    search region, is the nearest face, and inherits the track. The mesh then
+    gets drawn on the wrong person with no indication anything went wrong —
+    which is worse than losing him, because it looks like success.
+    """
+    track = tracker.track_from_seed(
+        crossing_source,
+        Seed(frame=0, box=RIGHT_OFFICER),
+        label="Right",
+        path=crossing_mezzanine,
+    )
+
+    where = middles(track, crossing_source.frame_count)
+    started = where[0]
+    ended = where[max(where)]
+
+    print(f"started at x {started:.2f}, ended at x {ended:.2f}")
+    assert ended > 0.45, "the track ended on the other officer"
+
+
 # --- WHEN THE LENGTHS DISAGREE ---
 
 

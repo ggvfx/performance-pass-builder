@@ -45,7 +45,7 @@ prove the same thing, and all five are within reach of a video generator.
 
 | # | File | Prompt shape | Why this one |
 |---|------|-------------|--------------|
-| 1 | `two_faces_crossing.mp4` | Two people talking in a room; one walks across in front of the other, briefly hiding them, then clears. Static camera, medium shot | **The most valuable clip on the list.** Where trackers swap people. It also contains its own control — the two are separated before and after the cross, so one clip proves multi-face tracking *and* identity through occlusion |
+| ~~1~~ | ~~`two_faces_crossing.mp4`~~ **— covered by `two_faces_cross_and_exit.mp4`.** Two officers at night: they cross, one exits, both spend time in profile, and detection flickers throughout. It also broke something real, which is the best thing a test clip can do | Two people talking in a room; one walks across in front of the other, briefly hiding them, then clears. Static camera, medium shot | **The most valuable clip on the list.** Where trackers swap people. It also contains its own control — the two are separated before and after the cross, so one clip proves multi-face tracking *and* identity through occlusion |
 | ~~2~~ | ~~`turns_fully_away.mp4`~~ **— covered by `walks_in_and_turns_away.mp4`, which arrived instead and does the job better.** It loses the face for 151 frames, which is the gap the whole list was chasing. Still worth a dedicated medium-shot turn one day, but no longer urgent | Medium shot. A person facing camera turns their head to look behind them, **holds it for about a second**, then turns back to roughly where they started. Static camera | **Two clips in one, and the better value.** The turn covers where landmarks degrade; the held moment facing away covers the gap path — NaN rows, `gaps()`, recorded-not-guessed, and the search region holding position — which has never run on real footage. Coming back to the same place is the recovery the search region is built for. Hold the beat, or the gap may be three frames and prove little |
 | 3 | `face_leaves_and_returns.mp4` | A person at a desk stands, walks out of frame, comes back and sits. Static camera, medium shot | The half #2 does **not** cover: returning *somewhere else*. The search region should fail to recover there and the right answer is another seed. Less urgent than it was, now that #2 covers the gap itself |
 | 4 | `big_expressions.mp4` | A person laughing hard, then shouting, then a wide surprised expression. Medium close-up, static camera | **The product reason this tool exists.** A mesh that tracks perfectly but averages expression away is worthless as a performance pass |
@@ -68,25 +68,31 @@ Each of these is a thing the app claims to do.
 - [x] **`one_face_medium.mp4`** — one person, medium close-up, frontal,
       evenly lit, near-static camera. *Have it.* **Proves:** detection, one
       track running the length of a shot, landmarks that stay put.
-- [ ] **`two_faces_separated.mp4`** — two people, both facing camera, clearly
-      apart, neither moving much. **Proves:** two tracks exist and stay
-      distinct. Must work before crossing is worth attempting.
-- [ ] **`two_faces_crossing.mp4`** — two people who pass in front of one
-      another and separate again. **Proves:** identity survives occlusion.
-      *The single most valuable clip on this list* — it is where trackers
-      swap people, and nothing else catches it.
+- [x] **`two_faces_separated.mp4`** — covered by the opening of
+      `two_faces_cross_and_exit.mp4`, where both officers stand apart facing
+      camera before anyone moves.
+- [x] **`two_faces_crossing.mp4`** — covered by
+      `two_faces_cross_and_exit.mp4`. One officer crosses the other and
+      leaves; identity survives the crossing and then transfers to the wrong
+      man after the exit, which is now task 3.10. *Still worth a version
+      where both stay in frame*, to separate "survived the crossing" from
+      "survived the exit".
 - [ ] **`face_leaves_and_returns.mp4`** — one person walks out of frame and
       back in. **Proves:** the same person keeps their track rather than
       quietly becoming a second one.
-- [ ] **`profile_turn.mp4`** — frontal, turn to full 90° profile, hold, turn
-      back. **Proves:** where landmarks degrade, and that the degradation is
-      *reported* rather than silently wrong.
+- [x] **`profile_turn.mp4`** — covered twice over, by the desert clip's turn
+      and by both officers turning to face each other under neon.
 - [ ] **`face_small_wide.mp4`** — wide shot, face roughly 5–10% of frame
       height. **Proves:** the detection floor, and whether the search box
       earns its place.
 - [ ] **`moving_camera_handheld.mp4`** — handheld follow, moderate shake, one
       subject. **Proves:** tracking is not quietly relying on a locked-off
       frame. Shoot this one; generated camera shake is too regular.
+
+**Tier 1 is nearly done.** Three clips arrived and covered five entries
+between them. What is left in it: a clean small face in a wide shot, big
+expressions, and the handheld shot — plus a crossing where both people stay
+in frame, to tell "survived the crossing" apart from "survived the exit".
 
 ## Tier 2 — robustness, before anyone else uses it
 

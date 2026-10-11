@@ -24,6 +24,7 @@ tested against a face, so these few clips are the exception.
 | File | What it is | What it exercises |
 |------|-----------|-------------------|
 | `one_face_medium.mp4` | 1920x1080, 24/1, 240 frames, h264 + AAC. One person, medium close-up, frontal, evenly lit, near-static camera with a slight push in | The ordinary case. Detection, a single track running the length of the shot, landmarks that stay put |
+| `two_faces_cross_and_exit.mp4` | 1920x1080, 24/1, 240 frames, h264 + AAC. Two officers talking at night under neon. Both turn to each other so both spend time in profile; the right one walks left across frame, past the other, and out | **The hardest clip here.** A genuine crossing, an exit, profiles, and night lighting. Detection flickers all the way through — two faces on 89 frames, one on 127, none on 24. It is also the clip that exposes the track transferring to the wrong person after an exit |
 | `walks_in_and_turns_away.mp4` | 1920x1080, 24/1, 240 frames, h264 + AAC. A figure walks toward camera from a wide shot, turns to look behind her, arrives in a medium shot | **The hard case, and the only one with a real gap.** The baseline finds her on 89 of 240 frames; seeding late and tracking back finds 188. Gap handling, backward recovery, and a face both too small and too turned away to detect |
 
 **`WANTED.md` in this folder is the gathering list** — every clip still
