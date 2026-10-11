@@ -520,6 +520,8 @@ the restructure.
 | `src/performance/face_geometry.py` | Where a face is: search regions, crop mapping, choosing between detections |
 | `src/performance/smoothing.py` | The One Euro filter |
 | `src/performance/mesh.py` | Rendering the face layer |
+| `src/performance/smoothing.py` | One Euro filter, resetting at every gap and seed |
+| `src/performance/landmarks.py` | Writing and reading `landmarks.json` |
 | `src/performance/validator.py` | The checks that block an output |
 | `src/performance/pipeline.py` | Stage order within a pass, and nothing else |
 | `src/ui/server.py` | The app, the page, the static mount, the wiring |

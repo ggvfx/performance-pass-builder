@@ -279,8 +279,12 @@ a small face in a wide shot. Those are what 3.4 onward actually need.
       may wait before the track is declared ended; cap how far a face may
       jump in one frame. There is an `xfail` test holding the failure in
       place, so whatever is chosen has something to satisfy
-- [ ] **3.9** `landmarks.json` and the per-face tracking report, including
+- [x] **3.9** `landmarks.json` and the per-face tracking report, including
       where each face's seeds are and which frames came from which
+      *`src/performance/landmarks.py`, with a reader so the round trip is
+      testable and a later tool has one obvious way in. A gap is `null`,
+      never interpolated. 2.4 MB for ten seconds of one face — see the
+      decision about `.npz` for long jobs.*
 
 **Decision point at 3.8:** composite the mesh layer over the plate — which
 the stack already does, since the plate is a layer source — and judge on

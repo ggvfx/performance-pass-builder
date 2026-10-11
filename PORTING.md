@@ -171,6 +171,9 @@ they have no minicut ancestor at all:
 | `src/performance/tracking.py` | minicut found shot boundaries and never looked at a face |
 | `src/performance/face_geometry.py` | Same reason — there were no faces to place |
 | `src/performance/model_file.py` | minicut needed no model file |
+| `src/performance/smoothing.py` | minicut had nothing to smooth |
+| `src/performance/mesh.py` | minicut drew nothing |
+| `src/performance/landmarks.py` | minicut had no landmarks |
 
 ## Checklist
 

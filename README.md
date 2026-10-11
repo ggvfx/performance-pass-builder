@@ -28,19 +28,26 @@ with its audio carried untouched — or deliberately left out, which is checked
 rather than assumed. Every deliverable is validated against its source and
 recorded in a sidecar, whether it passed or failed.
 
-And the first half of Phase 3: the MediaPipe model downloaded on first use
-and checked against a pinned hash, a face tracked on every frame of real
-footage, a face seeded from a box and followed forwards to the end and
-backwards to frame 0, and a search region that keeps the track on the face it
-was given rather than whoever wanders past. 407 tests.
+And Phase 3: the MediaPipe model downloaded on first use and checked
+against a pinned hash; a face seeded from a box and followed forwards to the
+end and backwards to frame 0; a search region that keeps the track on the
+face it was given rather than whoever wanders past; several faces at once,
+each with its own tracker; several seeds per face, dividing the shot into
+segments so a face that turns away can be picked up again; One Euro
+smoothing that resets at every gap and seed rather than filtering through
+them; the mesh rendered to **its own transparent layer** rather than drawn
+onto anything; and `landmarks.json` with the numbers behind it. 482 tests.
 
 The foundation was proven against clips ffmpeg generates; the tracking is
 proven against real footage, kept out of the repository. Whether the whole
 chain is right end to end is a deliberate checkpoint later, because some of
 it only a person can see.
 
-**Next milestone:** the rest of Phase 3 — several faces at once, several
-seeds per face, smoothing, and the mesh rendered to its own layer.
+**Next milestone:** Phase 4 — depth on Fal. One piece of Phase 3 is held
+back deliberately: a track can still transfer to the wrong face after the
+one it was following leaves frame, and which of three fixes to use is a
+judgement about how the tool should behave rather than a detail. There is a
+failing test holding it in place.
 
 Design in [ARCHITECTURE.md](ARCHITECTURE.md), settled decisions in
 [CLAUDE.md](CLAUDE.md), task order in [TODO.md](TODO.md).

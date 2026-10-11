@@ -13,6 +13,54 @@ again.
 
 ---
 
+## Phase 3 — 3.5 to 3.9
+
+Two of these are bugs I found and fixed; the rest are calls worth your eye.
+
+- [ ] **The base `FrameWriter` was throwing the alpha channel away.** It
+      forced `-pix_fmt yuv420p` whatever arrived, so RGBA frames went in and
+      an opaque video came out with nothing failing — a mesh layer written
+      that way composites as a solid rectangle over everything beneath it.
+      `OutputWriter` overrides this correctly, so deliverables were fine and
+      only direct `FrameWriter` use was affected. **The existing alpha test
+      could not have caught it**: it wrote alpha 255 everywhere, which reads
+      back identically either way. The new one writes transparent,
+      half-transparent and opaque stripes.
+- [ ] **One Euro's published `beta` of 0.007 does nothing at our units.**
+      That figure assumes pixels or centimetres; landmarks are fractions of
+      the picture, so a briskly moving face reads as 0.03 per second rather
+      than 60 and the adaptive half of the filter never engages — measured,
+      the result was indistinguishable from a plain lowpass. It is 30 now,
+      with a test asserting both that 0.007 is inert and that 30 is not.
+- [ ] **Seeds are all checked before any tracking starts.** One detection
+      each, under a second, so a box drawn on the sky is refused before
+      minutes are spent — and every bad box is named at once rather than one
+      per run.
+- [ ] **Only the first seed can fail a track.** A later seed marks a face
+      the artist can see; if the detector disagrees there, the honest result
+      is a gap in that segment rather than losing everything tracked behind
+      it.
+- [ ] **Each face costs a full decode.** Three faces, three passes over the
+      source. Sharing one decode between several landmarkers would be faster
+      and is not done: the faces are seeded on different frames and run in
+      different directions, and that bookkeeping is a worse thing to own
+      than the extra minutes — until something says otherwise.
+- [ ] **The mesh is unpremultiplied once, after all faces are drawn.**
+      OpenCV's anti-aliasing leaves premultiplied edges and the compositor
+      works in straight alpha, so the colour is divided back out. Doing it
+      per face would compound the rounding where two faces overlap.
+- [ ] **`landmarks.json` is 2.4 MB for ten seconds of one face**, and would
+      be about 106 MB for two minutes of three. That is inherent — 478
+      points of three numbers per face per frame — and it is written
+      compactly with no indentation because nobody reads 344,000 numbers by
+      eye. **`.npz` would be roughly a tenth of the size**, and is already
+      the format Fal hands depth back in. Worth switching? It is an
+      interface, so not a thing to change quietly later.
+- [ ] **Rounding is done in float64, which halved the file.** Round a
+      float32 to five places and `tolist()` writes all seventeen digits of
+      the nearest float32 to that value. 5.6 MB became 2.4 MB with identical
+      accuracy — 0.01 of a pixel.
+
 ## Phase 3 — what the new footage found
 
 - [ ] **A track can transfer to the wrong face, and I have left it broken
