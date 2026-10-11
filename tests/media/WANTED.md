@@ -46,10 +46,14 @@ prove the same thing, and all five are within reach of a video generator.
 | # | File | Prompt shape | Why this one |
 |---|------|-------------|--------------|
 | 1 | `two_faces_crossing.mp4` | Two people talking in a room; one walks across in front of the other, briefly hiding them, then clears. Static camera, medium shot | **The most valuable clip on the list.** Where trackers swap people. It also contains its own control — the two are separated before and after the cross, so one clip proves multi-face tracking *and* identity through occlusion |
-| 2 | `profile_turn.mp4` | A person facing camera turns their head slowly to full profile, holds, turns back. Medium close-up, even light, static camera | Where landmarks degrade. Every real shot has head turns in it, and the question is whether degradation is reported or silently wrong |
-| 3 | `face_leaves_and_returns.mp4` | A person at a desk stands, walks out of frame, comes back and sits. Static camera, medium shot | Track identity across a gap — a different failure from occlusion. Catches the face coming back as a *second* person |
+| 2 | `turns_fully_away.mp4` | Medium shot. A person facing camera turns their head to look behind them, **holds it for about a second**, then turns back to roughly where they started. Static camera | **Two clips in one, and the better value.** The turn covers where landmarks degrade; the held moment facing away covers the gap path — NaN rows, `gaps()`, recorded-not-guessed, and the search region holding position — which has never run on real footage. Coming back to the same place is the recovery the search region is built for. Hold the beat, or the gap may be three frames and prove little |
+| 3 | `face_leaves_and_returns.mp4` | A person at a desk stands, walks out of frame, comes back and sits. Static camera, medium shot | The half #2 does **not** cover: returning *somewhere else*. The search region should fail to recover there and the right answer is another seed. Less urgent than it was, now that #2 covers the gap itself |
 | 4 | `big_expressions.mp4` | A person laughing hard, then shouting, then a wide surprised expression. Medium close-up, static camera | **The product reason this tool exists.** A mesh that tracks perfectly but averages expression away is worthless as a performance pass |
 | 5 | `face_small_wide.mp4` | Wide shot, a person at the far end of a long room facing camera, small in frame. Static camera | The detection floor, and the clip that decides whether the search box earns its place |
+
+**If the turn never loses the face**, that is a useful result in itself —
+MediaPipe would be better at profiles than expected — but the gap path would
+still be untested, and #3 becomes urgent again rather than optional.
 
 **The sixth, when you have a camera rather than a generator:**
 `moving_camera_handheld.mp4`. Left out deliberately — generated camera shake
