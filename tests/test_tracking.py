@@ -989,6 +989,29 @@ def test_one_seed_through_track_face_matches_track_from_seed(
     assert direct.gaps() == general.gaps()
 
 
+# --- SMOOTHING A REAL TRACK ---
+
+
+def test_smoothing_calms_a_real_track_without_flattening_it(one_face_source, one_face_track):
+    """
+    On footage rather than synthetic noise. The face in this clip barely
+    moves, so almost all of its frame-to-frame change is the tracker
+    re-solving rather than the person — exactly what smoothing is for.
+    """
+    from src.performance.smoothing import jitter, smooth
+
+    rate = one_face_source.fps_numerator / one_face_source.fps_denominator
+    filtered = smooth(one_face_track, rate)
+
+    raw_px = jitter(one_face_track) * one_face_source.width
+    smooth_px = jitter(filtered) * one_face_source.width
+    print(f"{raw_px:.2f}px/frame -> {smooth_px:.2f}px/frame")
+
+    assert smooth_px < raw_px
+    assert smooth_px > raw_px * 0.3, "that much reduction would be the performance going too"
+    filtered.validate_shape()
+
+
 # --- WHEN THE LENGTHS DISAGREE ---
 
 

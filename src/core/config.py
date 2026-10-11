@@ -223,6 +223,33 @@ SEED_FACE_LIMIT = 5
 # One face for the baseline pass. The selection-driven passes set their own.
 BASELINE_FACE_LIMIT = 1
 
+# --- SMOOTHING ---
+
+# One Euro filter settings. Raw landmarks jitter, and a generation model
+# renders jitter as shimmer.
+#
+# The trade is always the same: smooth a still point hard, and a moving one
+# barely at all, because smoothing movement is latency and a mesh that
+# arrives late looks worse than the jitter did.
+#
+# **`beta` is not the paper's 0.007, and it cannot be.** That figure assumes
+# coordinates in natural units — pixels, or centimetres. Landmarks here are
+# fractions of the picture, so a face moving briskly reads as about 0.03 per
+# second rather than 60, and 0.007 x 0.03 is three orders of magnitude too
+# small to lift the cutoff off its floor. Measured on real footage: at 0.007
+# the adaptive half of the filter does nothing at all, and the result is
+# indistinguishable from a plain lowpass.
+#
+# 30 puts it back in range: a still point is filtered at 1 Hz, and the
+# fastest points in a shot at around 6 Hz.
+#
+# **Still not tuned against a picture.** The honest place to settle these is
+# beside a rendered mesh at 3.8, where "too soft" and "still crawling" are
+# things you can see rather than numbers to argue about.
+SMOOTHING_MIN_CUTOFF = 1.0    # Hz. Lower smooths a still point harder
+SMOOTHING_BETA = 30.0         # Per fraction-of-picture per second, not pixels
+SMOOTHING_SPEED_CUTOFF = 1.0  # Hz. Smooths the speed estimate itself
+
 # --- MODEL CACHE ---
 
 # The MediaPipe bundle lands here on first use. Inside the repo but gitignored

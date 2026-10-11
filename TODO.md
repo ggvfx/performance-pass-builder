@@ -247,8 +247,16 @@ a small face in a wide shot. Those are what 3.4 onward actually need.
       running to the end, so three seeds cost one decode and not three.
       Only the first seed can fail the track: a later one that finds nothing
       is a gap in its own segment, never the loss of everything behind it.*
-- [ ] **3.7** Smoothing, resetting across a gap and across a seed boundary
+- [x] **3.7** Smoothing, resetting across a gap and across a seed boundary
       rather than through either
+      *`src/performance/smoothing.py`. A One Euro filter, which adapts per
+      landmark per frame — a still point smoothed hard, a fast one barely,
+      because smoothing movement is latency. Resets on `segments()`, which
+      already returns exactly the runs that may be filtered as one. 2.48 to
+      2.01 px/frame on the real clip. **The published beta of 0.007 was
+      inert here** and is now 30: that figure assumes pixels, and landmarks
+      are fractions of the picture, so it was three orders of magnitude too
+      small to lift the cutoff off its floor. A test holds that.*
 - [ ] **3.8** Rendering the mesh to **its own layer, with alpha** — not drawn
       onto anything. Widths scaled to the picture. All faces in one layer, with
       per-face visibility, so a three-person shot does not fill the stack. This
