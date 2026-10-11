@@ -257,11 +257,18 @@ a small face in a wide shot. Those are what 3.4 onward actually need.
       inert here** and is now 30: that figure assumes pixels, and landmarks
       are fractions of the picture, so it was three orders of magnitude too
       small to lift the cutoff off its floor. A test holds that.*
-- [ ] **3.8** Rendering the mesh to **its own layer, with alpha** — not drawn
+- [x] **3.8** Rendering the mesh to **its own layer, with alpha** — not drawn
       onto anything. Widths scaled to the picture. All faces in one layer, with
       per-face visibility, so a three-person shot does not fill the stack. This
       is what lets the mesh be output alone, reordered, or left out of a
       composite without re-tracking
+      *`src/performance/mesh.py`. Blue tessellation, green eyes and brows,
+      orange lips, white irises — the Genjutsu colours. Looked at over the
+      plate, not just asserted. **Found a real bug on the way:** the base
+      `FrameWriter` forced `yuv420p` whatever arrived, so RGBA went in and
+      an opaque video came out — a mesh layer written that way composites
+      as a solid rectangle. The old alpha test could not catch it because
+      it used fully opaque alpha, which reads back the same either way.*
 - [ ] **3.10** **A recovered face must be shown to be the same face.** Found
       by `two_faces_cross_and_exit.mp4`: when the seeded officer walks out of
       frame, the search region stays where it was, the other officer walks

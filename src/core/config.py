@@ -223,6 +223,23 @@ SEED_FACE_LIMIT = 5
 # One face for the baseline pass. The selection-driven passes set their own.
 BASELINE_FACE_LIMIT = 1
 
+# --- THE FACE MESH ---
+
+# Colours as (R, G, B). From the Genjutsu Open Source Workflow, which is
+# where the idea of a mesh over depth as Seedance guidance comes from —
+# these are known to read as guidance rather than as picture content, which
+# is not a thing worth rediscovering by trial.
+MESH_TESSELATION_COLOUR = (80, 160, 255)   # Blue, the whole surface
+MESH_LIPS_COLOUR = (255, 150, 40)          # Orange
+MESH_EYES_COLOUR = (90, 230, 120)          # Green, eyes and brows
+MESH_IRIS_COLOUR = (255, 255, 255)         # White, the ten refined points
+
+# Line widths as a fraction of picture height, so a mesh looks the same on a
+# 720p proxy and a 4K master instead of becoming a cobweb or a scribble.
+# Rounded up to at least one pixel at draw time.
+MESH_TESSELATION_WIDTH = 0.0009   # About 1px at 1080, 2px at 2160
+MESH_FEATURE_WIDTH = 0.0019       # Lips, eyes and brows: about 2px at 1080
+
 # --- SMOOTHING ---
 
 # One Euro filter settings. Raw landmarks jitter, and a generation model

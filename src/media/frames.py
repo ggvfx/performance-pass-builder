@@ -71,6 +71,11 @@ class PixelFormat:
     def bytes_per_pixel(self) -> int:
         return self.channels * np.dtype(self.sample).itemsize
 
+    @property
+    def carries_alpha(self) -> bool:
+        """Whether a frame in this format has transparency to lose."""
+        return self.channels == 4
+
 
 RGB = PixelFormat("rgb24", 3)
 RGBA = PixelFormat("rgba", 4)
@@ -359,6 +364,12 @@ def frames_backwards(
 # --- WRITING ---
 
 
+# Codecs that can actually carry an alpha channel. Writing RGBA through
+# anything else drops it without complaint, which is how a mesh layer ends
+# up compositing as a solid rectangle.
+ALPHA_CODECS = {"qtrle", "png", "prores_ks"}
+
+
 class FrameWriter:
     """
     Encodes RGB frames into a video, one at a time.
@@ -415,7 +426,30 @@ class FrameWriter:
         ]
 
     def video_output_arguments(self) -> list[str]:
-        """How the picture is encoded."""
+        """
+        How the picture is encoded.
+
+        Raises:
+            ValueError: The frames carry alpha and the codec cannot.
+
+        Notes:
+            **The output pixel format follows the frames, not a constant.**
+            This used to be `yuv420p` whatever arrived, which quietly threw
+            the alpha channel away: RGBA went in, an opaque video came out,
+            and nothing failed. A mesh layer written that way composites as
+            a solid rectangle over everything beneath it.
+
+            Asking alpha of a codec that has none is refused rather than
+            silently flattened, for the same reason.
+        """
+        if self.pixel_format.carries_alpha:
+            if self.codec not in ALPHA_CODECS:
+                raise ValueError(
+                    f"{self.codec} cannot carry alpha, but the frames do. Use "
+                    f"{' or '.join(sorted(ALPHA_CODECS))}, or write RGB frames."
+                )
+            return ["-c:v", self.codec, "-pix_fmt", config.ALPHA_RLE_PIXEL_FORMAT]
+
         return [
             "-c:v", self.codec,
             "-preset", self.preset,

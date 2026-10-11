@@ -18,6 +18,8 @@ import pytest
 
 from src.core.ffmpeg_tools import MediaToolchain
 from src.media.frames import (
+    RGB,
+    RGBA,
     FrameReader,
     FrameWriter,
     frame_size_bytes,
@@ -187,6 +189,65 @@ def test_a_seek_time_comes_from_the_exact_rate():
     assert seek_seconds(24, Fraction(24, 1)) == "1.000000"
     assert seek_seconds(24, Fraction(24000, 1001)) == "1.001000"
     assert seek_seconds(0, Fraction(24, 1)) == "0.000000"
+
+
+# --- ALPHA ---
+
+
+@needs_ffmpeg
+def test_partial_alpha_survives_a_write(toolchain, tmp_path):
+    """
+    The bug this guards. The writer used to force `yuv420p` whatever
+    arrived, so RGBA frames went in and an opaque video came out with
+    nothing failing — a mesh layer written that way composites as a solid
+    rectangle over everything beneath it.
+
+    It has to be *partial* alpha. A layer that is fully opaque reads back
+    identically whether the channel survived or not, which is exactly why
+    the test that existed did not catch this.
+    """
+    import numpy as np
+
+    width, height, frames = 64, 48, 4
+    path = tmp_path / "mesh.mov"
+
+    frame = np.zeros((height, width, 4), dtype=np.uint8)
+    frame[:, :, 0] = 255          # red
+    frame[:, :16, 3] = 0          # transparent stripe
+    frame[:, 16:32, 3] = 128      # half-transparent stripe
+    frame[:, 32:, 3] = 255        # opaque
+
+    with FrameWriter(
+        toolchain, path, width, height, Fraction(24, 1), codec="qtrle", pixel_format=RGBA
+    ) as writer:
+        for _ in range(frames):
+            writer.write(frame)
+
+    with FrameReader(toolchain, path, width, height, RGBA) as reader:
+        back = next(iter(reader))
+
+    print(f"alpha came back as {sorted(set(back[0, ::16, 3].tolist()))}")
+    assert int(back[0, 8, 3]) == 0, "the transparent stripe came back opaque"
+    assert 120 <= int(back[0, 20, 3]) <= 136, "the half-transparent stripe was flattened"
+    assert int(back[0, 50, 3]) == 255
+
+
+def test_alpha_frames_through_a_codec_that_cannot_hold_them_is_refused(toolchain, tmp_path):
+    """
+    Silently flattening would be the same bug wearing a different hat, and
+    h264 is the default codec — so this is the easy mistake to make.
+    """
+    writer = FrameWriter(
+        toolchain, tmp_path / "x.mp4", 64, 48, Fraction(24, 1), pixel_format=RGBA
+    )
+
+    with pytest.raises(ValueError, match="cannot carry alpha"):
+        writer.video_output_arguments()
+
+
+def test_a_pixel_format_knows_whether_it_has_alpha():
+    assert RGBA.carries_alpha is True
+    assert RGB.carries_alpha is False
 
 
 # --- BACKWARDS ---
