@@ -8,8 +8,9 @@ and a missing field is an error rather than a wrong answer further on.
 Grouped by stage. Written for this project rather than ported, taking three
 shapes from minicut as reference — see PORTING.md.
 
-Imports nothing of ours: `config.py` imports this, so a constant that is part
-of a data contract rather than a setting lives here.
+Imports only `utils`, which is the bottom of the chain and imports nothing at
+all. `config.py` imports this module, so a constant that is part of a data
+contract rather than a setting lives here.
 
 Design reasoning for every stage is in ARCHITECTURE.md. What is here is the
 contract — the invariants a caller can rely on.
@@ -45,6 +46,8 @@ from pathlib import Path
 import numpy as np
 from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
+from src.core.utils import runs_of_true
+
 # =====================================================================
 # CONTRACT CONSTANTS
 #
@@ -72,6 +75,12 @@ MODEL_URL = (
 )
 MODEL_SHA256 = "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff"
 MODEL_BYTES = 3_758_596
+
+# FaceTrack.seeded_by holds a seed index per frame, and this where the frame
+# was not tracked at all. Named because it appears in the array contract, in
+# validate_shape and in every reader of a track — a bare -1 in four places is
+# four chances to mean something slightly different.
+NOT_SEEDED = -1
 
 # Bumped when a written file's shape changes, so an old selection.json is
 # recognised as old rather than half-read.
@@ -885,17 +894,51 @@ class FaceTrack:
             nowhere else — the point of raw arrays is that nothing else pays
             for validation, so those two places have to be deliberate.
         """
-        # PSEUDOCODE
-        # 1. landmarks: three dimensions, second is LANDMARK_COUNT, third is 3.
-        # 2. landmarks dtype is float32 — float64 doubles the memory for
-        #    precision no landmark has.
-        # 3. tracked and seeded_by: one dimension each, both the same length as
-        #    landmarks, dtypes bool and int16.
-        # 4. Every row where tracked is False is entirely NaN and has
-        #    seeded_by == -1; no row where it is True holds a NaN or a -1.
-        #    That is the invariant the drawing stage relies on, and it is cheap
-        #    to check once.
-        raise NotImplementedError
+        if self.landmarks.ndim != 3:
+            raise ValueError(f"landmarks must be 3-dimensional, got shape {self.landmarks.shape}")
+
+        if self.landmarks.shape[1:] != (LANDMARK_COUNT, 3):
+            raise ValueError(
+                f"landmarks must be (frames, {LANDMARK_COUNT}, 3), "
+                f"got {self.landmarks.shape}"
+            )
+
+        if self.landmarks.dtype != np.float32:
+            raise ValueError(
+                f"landmarks must be float32, got {self.landmarks.dtype} — float64 "
+                f"doubles the memory for precision no landmark has"
+            )
+
+        for name, array, dtype in (
+            ("tracked", self.tracked, np.bool_),
+            ("seeded_by", self.seeded_by, np.int16),
+        ):
+            if array.ndim != 1:
+                raise ValueError(f"{name} must be 1-dimensional, got shape {array.shape}")
+            if array.shape[0] != self.frame_count:
+                raise ValueError(
+                    f"{name} has {array.shape[0]} entries against "
+                    f"{self.frame_count} frames of landmarks"
+                )
+            if array.dtype != dtype:
+                raise ValueError(f"{name} must be {dtype.__name__}, got {array.dtype}")
+
+        # The invariant the drawing stage relies on: a gap is wholly a gap,
+        # and a tracked frame is wholly tracked. Anything in between would
+        # draw a mesh out of half-missing points.
+        missing = ~self.tracked
+
+        if not np.isnan(self.landmarks[missing]).all():
+            raise ValueError("an untracked frame has landmark values; a gap must be all NaN")
+
+        if not (self.seeded_by[missing] == NOT_SEEDED).all():
+            raise ValueError(f"an untracked frame has a seed index; a gap must be {NOT_SEEDED}")
+
+        if np.isnan(self.landmarks[self.tracked]).any():
+            raise ValueError("a tracked frame holds NaN landmarks")
+
+        if (self.seeded_by[self.tracked] == NOT_SEEDED).any():
+            raise ValueError(f"a tracked frame has seeded_by {NOT_SEEDED}, meaning untracked")
 
     def gaps(self) -> list[FrameRange]:
         """
@@ -906,13 +949,10 @@ class FaceTrack:
             because one long absence and shimmer throughout need different
             answers from the artist.
         """
-        # PSEUDOCODE
-        # 1. Walk `tracked` for transitions True->False and False->True.
-        # 2. Emit a FrameRange per run of False, inclusive at both ends.
-        # 3. A track that is False throughout is one range covering the shot,
-        #    not an empty list — "found nothing" and "found everything" must
-        #    not look the same to the caller.
-        raise NotImplementedError
+        return [
+            FrameRange(start_frame=start, end_frame=end)
+            for start, end in runs_of_true(~self.tracked)
+        ]
 
     def segments(self) -> list[tuple[int, FrameRange]]:
         """
@@ -927,11 +967,17 @@ class FaceTrack:
             segment ends where the face was lost, which is not knowable until
             the track exists.
         """
-        # PSEUDOCODE
-        # 1. Walk `seeded_by`, skipping -1.
-        # 2. Start a new range whenever the value changes.
-        # 3. Emit (value, FrameRange) per run.
-        raise NotImplementedError
+        segments: list[tuple[int, FrameRange]] = []
+
+        for seed_index in np.unique(self.seeded_by):
+            if seed_index == NOT_SEEDED:
+                continue
+            segments.extend(
+                (int(seed_index), FrameRange(start_frame=start, end_frame=end))
+                for start, end in runs_of_true(self.seeded_by == seed_index)
+            )
+
+        return sorted(segments, key=lambda pair: pair[1].start_frame)
 
     def landmarks_on(self, frame: int) -> np.ndarray | None:
         """
@@ -945,11 +991,16 @@ class FaceTrack:
             face here" reads as a question about the face and not about
             floating point.
         """
-        # PSEUDOCODE
-        # 1. Bounds-check the frame. Out of range is a programming error, so it
-        #    raises rather than returning None and being mistaken for a gap.
-        # 2. Return None where tracked[frame] is False, else that row.
-        raise NotImplementedError
+        if not 0 <= frame < self.frame_count:
+            raise IndexError(
+                f"frame {frame} is outside {self.label!r}, which is "
+                f"{self.frame_count} frames long"
+            )
+
+        if not self.tracked[frame]:
+            return None
+
+        return self.landmarks[frame]
 
 
 # =====================================================================

@@ -208,7 +208,13 @@ a small face in a wide shot. Those are what 3.4 onward actually need.
       4 ms. A file that fails its hash is deleted, never used. Proven for
       real from a clean `models/`: downloaded, cached, then tampered with and
       replaced. 20 tests, none touching the network.*
-- [ ] **3.2** One face, full frame, every frame — the baseline
+- [x] **3.2** One face, full frame, every frame — the baseline
+      *`src/performance/tracking.py`. 240/240 frames on
+      `one_face_medium.mp4` at ~75 fps, landmarks checked by eye against the
+      picture as well as by assert. A clip with no face gives a full-length
+      track of NaN, never a short one. `FaceTrack.validate_shape`, `gaps`,
+      `segments` and `landmarks_on` implemented with it — they were
+      pseudocode, and the tracker is what fills the arrays they describe.*
 - [ ] **3.3** Seeding from a box on a chosen frame; forward and backward runs
 - [ ] **3.4** The search box following the face frame to frame
 - [ ] **3.5** Several faces, one tracker each

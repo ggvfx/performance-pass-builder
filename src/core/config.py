@@ -178,6 +178,22 @@ REFERENCE_RATE = 24
 # scattering files among the masters.
 OUTPUT_DIR_SUFFIX = "_performance"
 
+# --- FACE TRACKING ---
+
+# MediaPipe's own defaults, set here rather than left implicit so the numbers
+# a track was made with are visible and recorded, not buried in a library.
+#
+# Deliberately not tuned yet: raising them loses marginal frames that could
+# have been tracked, and lowering them invents faces in noise. Which way to
+# move is a question for real footage, not for a guess — see the clips in
+# tests/media/WANTED.md.
+FACE_DETECTION_CONFIDENCE = 0.5   # Minimum score to call something a face
+FACE_PRESENCE_CONFIDENCE = 0.5    # Minimum score that the face is still there
+FACE_TRACKING_CONFIDENCE = 0.5    # Minimum score to carry a track to the next frame
+
+# One face for the baseline pass. The selection-driven passes set their own.
+BASELINE_FACE_LIMIT = 1
+
 # --- MODEL CACHE ---
 
 # The MediaPipe bundle lands here on first use. Inside the repo but gitignored

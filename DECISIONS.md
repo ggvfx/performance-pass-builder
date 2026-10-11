@@ -13,6 +13,36 @@ again.
 
 ---
 
+## Phase 3 — 3.1 and 3.2
+
+- [ ] **MediaPipe is imported inside the function, not at module scope.**
+      There is no wheel for Intel macOS, and an import error at startup would
+      take the server down *before* the dependency panel could render the
+      message explaining exactly that. Unusual enough to be worth your eye.
+- [ ] **The baseline attributes every tracked frame to seed 0.** It has no
+      seeds, but the array contract says `seeded_by` is `NOT_SEEDED` only
+      where nothing was found. An implicit "the whole clip" seed keeps the
+      contract true, and 3.6 makes the baseline the one-seed case of the real
+      thing rather than a second mechanism.
+- [ ] **The three confidence thresholds are set in `config.py` to
+      MediaPipe's own defaults**, rather than left implicit. Deliberately not
+      tuned: a track that found nothing reads very differently if the
+      threshold was 0.9, so the number a track was made with should be
+      visible. Which way to move them is a question for real footage.
+- [ ] **VIDEO mode, not IMAGE mode**, with timestamps derived from the exact
+      rational rate. Video mode carries state between frames — steadier and
+      much faster — but rejects a timestamp that fails to rise, which is
+      where a rounded 23.976 would eventually bite.
+- [ ] **A decode that disagrees with the probe raises.** If the file hands
+      over fewer frames than the source claims, every frame index after the
+      difference points at the wrong picture, and nothing downstream could
+      detect it. Refused rather than padded.
+- [ ] **`runs_of_true` moved into `core/utils.py` and the validator
+      refactored onto it.** Finding gaps in a track and finding repeats in a
+      depth video are the same question, and I had written the loop twice —
+      including the "close a run that reaches the end" case, which is the bug
+      that shape exists to avoid.
+
 ## Phase 3 — cleanup findings, pre-phase
 
 - [ ] **A missing `FAL_KEY` no longer blocks the whole app.** Found by

@@ -37,6 +37,7 @@ from pathlib import Path
 
 from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import AudioHandling, FrameRange, SourceInfo, ValidationResult
+from src.core.utils import runs_of_true
 from src.media.probe import SourceProbe
 
 # --- TIMEOUTS ---
@@ -235,20 +236,16 @@ class OutputValidator:
                 f"{source_path.name}'s {len(source)}; compare lengths with validate()"
             )
 
-        stalled: list[FrameRange] = []
-        run_start: int | None = None
-
-        for index in range(1, len(video)):
-            repeated = video[index] == video[index - 1] and source[index] != source[index - 1]
-
-            if repeated and run_start is None:
-                run_start = index
-            elif not repeated and run_start is not None:
-                stalled.append(FrameRange(start_frame=run_start, end_frame=index - 1))
-                run_start = None
-
-        if run_start is not None:
-            stalled.append(FrameRange(start_frame=run_start, end_frame=len(video) - 1))
+        # Frame 0 can never be a repeat, so the run-finder is fed from 1 and
+        # its indices shifted back up.
+        repeated = (
+            video[index] == video[index - 1] and source[index] != source[index - 1]
+            for index in range(1, len(video))
+        )
+        stalled = [
+            FrameRange(start_frame=start + 1, end_frame=end + 1)
+            for start, end in runs_of_true(repeated)
+        ]
 
         if stalled:
             logging.warning(

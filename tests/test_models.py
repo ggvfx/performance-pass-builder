@@ -15,6 +15,7 @@ from pydantic import ValidationError
 
 from src.core.models import (
     LANDMARK_COUNT,
+    NOT_SEEDED,
     AudioInfo,
     Layer,
     LayerSource,
@@ -77,13 +78,26 @@ def a_depth(**overrides) -> StoredDepth:
     return StoredDepth(**(fields | overrides))
 
 
-def a_track(frame_count=30, label="Woman") -> FaceTrack:
-    return FaceTrack(
-        label=label,
-        landmarks=np.zeros((frame_count, LANDMARK_COUNT, 3), dtype=np.float32),
-        tracked=np.ones(frame_count, dtype=bool),
-        seeded_by=np.zeros(frame_count, dtype=np.int16),
-    )
+def a_track(frame_count=30, label="Woman", missing=(), seeds=None) -> FaceTrack:
+    """
+    A track that satisfies the array contract.
+
+    Args:
+        missing: Frame indices the face was not found on. Their landmark rows
+            become NaN and their seed index NOT_SEEDED, because a gap that is
+            only half a gap is exactly what validate_shape rejects.
+        seeds: Per-frame seed index. Defaults to seed 0 throughout.
+    """
+    landmarks = np.zeros((frame_count, LANDMARK_COUNT, 3), dtype=np.float32)
+    tracked = np.ones(frame_count, dtype=bool)
+    seeded_by = np.array(seeds if seeds is not None else [0] * frame_count, dtype=np.int16)
+
+    for frame in missing:
+        landmarks[frame] = np.nan
+        tracked[frame] = False
+        seeded_by[frame] = NOT_SEEDED
+
+    return FaceTrack(label=label, landmarks=landmarks, tracked=tracked, seeded_by=seeded_by)
 
 
 # --- FRAME RANGES ---
@@ -583,24 +597,166 @@ def test_a_result_with_no_checks_is_not_a_pass():
     assert ValidationResult().passed is False
 
 
+# --- TRACKS ---
+
+
+def test_a_well_formed_track_passes_its_contract():
+    a_track(frame_count=10).validate_shape()
+    a_track(frame_count=10, missing=[3, 4]).validate_shape()
+
+
+def test_landmarks_must_be_float32():
+    """float64 doubles the memory for precision no landmark has."""
+    track = a_track(frame_count=4)
+    track.landmarks = track.landmarks.astype(np.float64)
+
+    with pytest.raises(ValueError, match="float32"):
+        track.validate_shape()
+
+
+def test_the_landmark_count_is_part_of_the_contract():
+    track = a_track(frame_count=4)
+    track.landmarks = np.zeros((4, 400, 3), dtype=np.float32)
+
+    with pytest.raises(ValueError, match=str(LANDMARK_COUNT)):
+        track.validate_shape()
+
+
+def test_the_flags_must_be_as_long_as_the_landmarks():
+    """A short `tracked` would silently stop reporting gaps near the end."""
+    track = a_track(frame_count=10)
+    track.tracked = np.ones(8, dtype=bool)
+
+    with pytest.raises(ValueError, match="8 entries against 10"):
+        track.validate_shape()
+
+
+def test_a_half_missing_frame_is_rejected():
+    """
+    The invariant the drawing stage leans on. A frame marked untracked but
+    still holding numbers would draw a mesh out of stale points.
+    """
+    track = a_track(frame_count=5)
+    track.tracked[2] = False  # ...but the landmarks are still zeros
+
+    with pytest.raises(ValueError, match="gap must be all NaN"):
+        track.validate_shape()
+
+
+def test_a_tracked_frame_holding_nan_is_rejected():
+    """The other direction: present, but with points nothing can draw."""
+    track = a_track(frame_count=5)
+    track.landmarks[2][10] = np.nan
+
+    with pytest.raises(ValueError, match="holds NaN"):
+        track.validate_shape()
+
+
+def test_a_tracked_frame_must_say_which_seed_found_it():
+    track = a_track(frame_count=5)
+    track.seeded_by[2] = NOT_SEEDED
+
+    with pytest.raises(ValueError, match="meaning untracked"):
+        track.validate_shape()
+
+
+def test_a_track_with_no_gaps_reports_none():
+    assert a_track(frame_count=10).gaps() == []
+
+
+def test_gaps_are_ranges_not_counts():
+    """One long absence and shimmer throughout need different answers."""
+    gaps = a_track(frame_count=20, missing=[5, 6, 7, 15]).gaps()
+
+    assert [(g.start_frame, g.end_frame) for g in gaps] == [(5, 7), (15, 15)]
+
+
+def test_a_gap_running_to_the_last_frame_is_still_reported():
+    """The run never closes, so a loop that only emits on change would drop it."""
+    gaps = a_track(frame_count=10, missing=[8, 9]).gaps()
+
+    assert [(g.start_frame, g.end_frame) for g in gaps] == [(8, 9)]
+
+
+def test_a_face_found_nowhere_is_one_whole_gap():
+    """
+    Not an empty list. "Found nothing" and "found everything" must not look
+    the same to the caller.
+    """
+    gaps = a_track(frame_count=6, missing=range(6)).gaps()
+
+    assert len(gaps) == 1
+    assert gaps[0].frame_count == 6
+
+
+def test_segments_say_which_seed_covered_which_frames():
+    seeds = [0, 0, 0, 1, 1, 2]
+    segments = a_track(frame_count=6, seeds=seeds).segments()
+
+    assert [(index, r.start_frame, r.end_frame) for index, r in segments] == [
+        (0, 0, 2),
+        (1, 3, 4),
+        (2, 5, 5),
+    ]
+
+
+def test_segments_are_in_frame_order_not_seed_order():
+    """
+    A seed can be used again after another one. Ordered by where they land,
+    because that is how a timeline reads.
+    """
+    seeds = [1, 1, 0, 0, 1, 1]
+    segments = a_track(frame_count=6, seeds=seeds).segments()
+
+    assert [index for index, _ in segments] == [1, 0, 1]
+    assert [r.start_frame for _, r in segments] == [0, 2, 4]
+
+
+def test_segments_skip_the_frames_nothing_found():
+    """A segment ends where the face was lost, not where the next seed is."""
+    track = a_track(frame_count=6, missing=[2, 3])
+    segments = track.segments()
+
+    assert [(r.start_frame, r.end_frame) for _, r in segments] == [(0, 1), (4, 5)]
+
+
+def test_landmarks_on_a_tracked_frame_are_the_points():
+    track = a_track(frame_count=5)
+
+    assert track.landmarks_on(2).shape == (LANDMARK_COUNT, 3)
+
+
+def test_landmarks_on_a_gap_are_none_rather_than_nan():
+    """
+    So "is there a face here" reads as a question about the face, not about
+    floating point.
+    """
+    assert a_track(frame_count=5, missing=[2]).landmarks_on(2) is None
+
+
+def test_a_frame_outside_the_track_raises_rather_than_reading_as_a_gap():
+    """Out of range is a programming error. None would hide it as a gap."""
+    track = a_track(frame_count=5)
+
+    for frame in (5, -1, 99):
+        with pytest.raises(IndexError):
+            track.landmarks_on(frame)
+
+
 # --- THE SKELETON ITSELF ---
 
 
 def test_nothing_unimplemented_returns_none():
     """
     The anti-pattern this guards: `pass` as a placeholder returns None, so an
-    unimplemented function flows through the app pretending it worked. Every
-    one of these is pseudocode today and must raise until it is not.
-    """
-    track = a_track(frame_count=2)
+    unimplemented function flows through the app pretending it worked.
 
+    What is left is the box arithmetic, which 3.3 and 3.4 fill in. The
+    FaceTrack methods were here too until 3.2 implemented them.
+    """
     unimplemented = {
         "NormalisedBox.to_pixels": lambda: a_box().to_pixels(1920, 1080),
         "NormalisedBox.padded": lambda: a_box().padded(0.5),
-        "FaceTrack.validate_shape": track.validate_shape,
-        "FaceTrack.gaps": track.gaps,
-        "FaceTrack.segments": track.segments,
-        "FaceTrack.landmarks_on": lambda: track.landmarks_on(0),
     }
 
     for name, call in unimplemented.items():
