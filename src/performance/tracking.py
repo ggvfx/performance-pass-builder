@@ -70,6 +70,11 @@ if TYPE_CHECKING:
 # seed indices and the baseline becomes the one-seed case.
 BASELINE_SEED = 0
 
+# How many times `search_region` may grow a region toward the minimum crop
+# size. Three is one more than the rounding ever needs, and the cap is what
+# stops a region already filling the picture from looping.
+GROWTH_ATTEMPTS = 3
+
 
 class NoFaceInSeed(ValueError):
     """
@@ -204,6 +209,7 @@ class FaceTracker:
         label: str = "Face",
         path: Path | None = None,
         seed_index: int = 0,
+        search_padding: float | None = config.FACE_SEARCH_PADDING,
         on_progress: "Callable[[int, int], None] | None" = None,
     ) -> FaceTrack:
         """
@@ -218,6 +224,11 @@ class FaceTracker:
                 here puts landmarks on the wrong frames, silently.
             seed_index: Which of the face's seeds this is, recorded per frame
                 so the timeline can show where each stretch came from.
+            search_padding: How far around the last known position to look,
+                as a fraction of the face's own size. **None searches the
+                whole frame every time** — what this did before the search
+                box existed, kept so the two can be measured against each
+                other rather than argued about.
             on_progress: Called with (frames done, frames total).
 
         Returns:
@@ -238,10 +249,17 @@ class FaceTracker:
             did instead of guessing at frame `seed - 1`. That frame's result
             is discarded; the forward run already owns it.
 
-            **Which face** is decided by the box on the seed frame, and by
-            nearest-centroid continuity after that. The padded search region
-            that makes this hold when two faces cross is 3.4 — here, two
-            faces that touch can still be confused.
+            **Which face is a question of where it was.** Each frame the
+            picture is cropped to a region around the last known position,
+            and only that is searched — so a face wandering into shot is not
+            a candidate at all, because it is not in the picture handed to
+            the model. That is the answer to two faces crossing, and it is
+            cheaper than searching the whole frame as well as safer.
+
+            While the face is missing the region stays where it was. A blink
+            or a blur recovers; someone who leaves and returns elsewhere does
+            not, and wants another seed. Re-seeding is the normal way to
+            work, not a recovery path.
         """
         import mediapipe as mp
         from mediapipe.tasks import python as mediapipe_python
@@ -274,6 +292,37 @@ class FaceTracker:
             if on_progress is not None:
                 on_progress(done, frame_count)
 
+        # Where to look next. It starts as the seed box, which is what makes
+        # the first detection find the face the artist meant rather than the
+        # most prominent one in the picture.
+        region = self._region_for(seed.box, source, search_padding)
+
+        def look(landmarker, frame, clock: int, choose) -> np.ndarray | None:
+            """One frame: crop to the region, detect, map back, choose."""
+            nonlocal region
+
+            crop = region.to_pixels(source.width, source.height) if region else None
+            picture = frame if crop is None else frame[crop[1] : crop[3], crop[0] : crop[2]]
+
+            found = landmarker.detect_for_video(
+                mp.Image(image_format=mp.ImageFormat.SRGB, data=np.ascontiguousarray(picture)),
+                timestamp_ms(clock, rate),
+            ).face_landmarks
+
+            candidates = [points_to_array(face) for face in found]
+            if crop is not None:
+                candidates = [
+                    to_full_frame(points, crop, source.width, source.height)
+                    for points in candidates
+                ]
+
+            chosen = choose(candidates)
+
+            if chosen is not None:
+                region = self._region_for(bounding_box(chosen), source, search_padding)
+
+            return chosen
+
         # --- FORWARDS, FROM THE SEED ---
 
         following: tuple[float, float] | None = None
@@ -287,21 +336,19 @@ class FaceTracker:
                     if frame_index >= frame_count:
                         break
 
-                    faces = landmarker.detect_for_video(
-                        mp.Image(image_format=mp.ImageFormat.SRGB, data=frame),
-                        timestamp_ms(offset, rate),
-                    ).face_landmarks
-
                     if frame_index == seed.frame:
-                        chosen = face_in_box(faces, seed.box)
+                        chosen = look(
+                            landmarker, frame, offset, lambda found: face_in_box(found, seed.box)
+                        )
                         if chosen is None:
                             raise NoFaceInSeed(
                                 f"no face was found inside the box on frame {seed.frame}. "
-                                f"{len(faces)} face(s) were found elsewhere in the picture. "
                                 f"Try drawing the box again, or seeding on another frame."
                             )
                     else:
-                        chosen = face_nearest(faces, following)
+                        chosen = look(
+                            landmarker, frame, offset, lambda found: face_nearest(found, following)
+                        )
 
                     if chosen is not None:
                         record(frame_index, chosen)
@@ -313,6 +360,9 @@ class FaceTracker:
 
         if seed.frame > 0:
             following = centroid(landmarks[seed.frame])
+            region = self._region_for(
+                bounding_box(landmarks[seed.frame]), source, search_padding
+            )
 
             with vision.FaceLandmarker.create_from_options(options) as landmarker:
                 backwards = frames_backwards(
@@ -320,12 +370,9 @@ class FaceTracker:
                 )
 
                 for clock, (frame_index, frame) in enumerate(backwards):
-                    faces = landmarker.detect_for_video(
-                        mp.Image(image_format=mp.ImageFormat.SRGB, data=frame),
-                        timestamp_ms(clock, rate),
-                    ).face_landmarks
-
-                    chosen = face_nearest(faces, following)
+                    chosen = look(
+                        landmarker, frame, clock, lambda found: face_nearest(found, following)
+                    )
 
                     # The seed frame is here only to start this tracker from
                     # the same known-good detection. The forward run owns it.
@@ -348,6 +395,16 @@ class FaceTracker:
         return track
 
     # --- THE MODEL ---
+
+    @staticmethod
+    def _region_for(
+        around: NormalisedBox, source: SourceInfo, padding: float | None
+    ) -> NormalisedBox | None:
+        """The next search region, or None when the whole frame is searched."""
+        if padding is None:
+            return None
+
+        return search_region(around, source.width, source.height, padding)
 
     def _options(self, vision, mediapipe_python, face_limit: int):
         """
@@ -400,6 +457,95 @@ def timestamp_ms(frame_index: int, rate: Fraction) -> int:
     return int(Fraction(frame_index, 1) / rate * 1000)
 
 
+def search_region(
+    around: NormalisedBox,
+    width: int,
+    height: int,
+    padding: float,
+    minimum_pixels: int | None = None,
+) -> NormalisedBox:
+    """
+    The region to look in next, from where the face was last.
+
+    Args:
+        around: The face's own bounds on the previous frame.
+        width: Picture width in pixels, for the minimum size.
+        height: Picture height in pixels.
+        padding: Fraction of the box's own size to add on each side.
+        minimum_pixels: Grow the region until its short side is at least this
+            many pixels. Defaults to `config.MIN_SEARCH_PIXELS`.
+
+    Notes:
+        **The minimum is what makes cropping worth doing on a wide shot.** A
+        face 60 pixels across, padded, is still only a 120-pixel crop, and
+        MediaPipe's detector runs at 192x192 — so it would be upscaling
+        almost nothing. Growing the region first means the crop carries real
+        detail rather than a magnified thumbnail.
+
+        Clamped to the picture throughout, so a face at the edge gets a
+        smaller region rather than an invalid one.
+    """
+    floor = config.MIN_SEARCH_PIXELS if minimum_pixels is None else minimum_pixels
+    region = around.padded(padding)
+
+    # Grown a step at a time rather than in one calculation. A box's two
+    # axes do not scale alike — a fraction of the height is fewer pixels
+    # than the same fraction of the width — and `to_pixels` rounds outward
+    # at both ends, so one division lands a pixel or two short. Bounded,
+    # because a region already filling the picture cannot grow.
+    for _ in range(GROWTH_ATTEMPTS):
+        left, top, right, bottom = region.to_pixels(width, height)
+        shortfall = max(
+            floor / (right - left) if right - left < floor else 1.0,
+            floor / (bottom - top) if bottom - top < floor else 1.0,
+        )
+
+        if shortfall == 1.0:
+            break
+
+        grown = region.padded((shortfall - 1.0) / 2.0)
+        if grown.model_dump() == region.model_dump():
+            break  # against the edges of the picture; this is as big as it gets
+
+        region = grown
+
+    return region
+
+
+def to_full_frame(
+    points: np.ndarray, crop: tuple[int, int, int, int], width: int, height: int
+) -> np.ndarray:
+    """
+    Landmarks found inside a crop, as fractions of the whole picture.
+
+    Args:
+        points: (LANDMARK_COUNT, 3), as fractions of the crop.
+        crop: (left, top, right, bottom) in pixels of the full picture.
+        width: Full picture width.
+        height: Full picture height.
+
+    Notes:
+        Without this, every landmark from a cropped search would be a
+        fraction of the search box, and the mesh would land in the top-left
+        corner at the wrong scale. A track's contract is fractions of the
+        *picture*, whatever was actually handed to the model.
+
+        z is scaled by the crop's width rather than left alone: MediaPipe's
+        relative depth is roughly in the same units as x, so a crop a third
+        of the width would otherwise report depths three times too large.
+    """
+    left, top, right, bottom = crop
+    crop_width = (right - left) / width
+    crop_height = (bottom - top) / height
+
+    mapped = np.empty_like(points)
+    mapped[:, 0] = left / width + points[:, 0] * crop_width
+    mapped[:, 1] = top / height + points[:, 1] * crop_height
+    mapped[:, 2] = points[:, 2] * crop_width
+
+    return mapped
+
+
 def centroid(points: np.ndarray) -> tuple[float, float]:
     """The middle of a set of landmarks, as fractions of the picture."""
     return float(points[:, 0].mean()), float(points[:, 1].mean())
@@ -449,12 +595,12 @@ def overlap(first: NormalisedBox, second: NormalisedBox) -> float:
     return intersection / (areas - intersection)
 
 
-def face_in_box(faces, box: NormalisedBox) -> np.ndarray | None:
+def face_in_box(candidates: list[np.ndarray], box: NormalisedBox) -> np.ndarray | None:
     """
     Of several detected faces, the one the seed box was drawn around.
 
     Args:
-        faces: MediaPipe's landmark lists for this frame.
+        candidates: Each face's points, as fractions of the whole picture.
         box: What the artist drew.
 
     Returns:
@@ -468,8 +614,7 @@ def face_in_box(faces, box: NormalisedBox) -> np.ndarray | None:
     best: np.ndarray | None = None
     best_overlap = 0.0
 
-    for face in faces:
-        points = points_to_array(face)
+    for points in candidates:
         score = overlap(bounding_box(points), box)
         if score > best_overlap:
             best, best_overlap = points, score
@@ -477,7 +622,9 @@ def face_in_box(faces, box: NormalisedBox) -> np.ndarray | None:
     return best
 
 
-def face_nearest(faces, to: tuple[float, float] | None) -> np.ndarray | None:
+def face_nearest(
+    candidates: list[np.ndarray], to: tuple[float, float] | None
+) -> np.ndarray | None:
     """
     Of several detected faces, the one closest to where the face was last.
 
@@ -485,19 +632,19 @@ def face_nearest(faces, to: tuple[float, float] | None) -> np.ndarray | None:
         That face's points, or None when nothing was detected.
 
     Notes:
-        Plain nearest-centroid, with no limit on how far it may jump. That is
-        the honest limit of 3.3: the padded search region which makes this
-        hold when two faces cross is 3.4, and until then a face passing in
-        front of another can take the track with it.
+        Nearest centroid, with no limit on how far it may jump — the search
+        region is what bounds this now. Inside a crop around the last known
+        position there is rarely more than one candidate, and a face that
+        wandered into shot was never in the picture handed to the model.
     """
-    if not faces:
+    if not candidates:
         return None
 
     if to is None:
-        return points_to_array(faces[0])
+        return candidates[0]
 
     return min(
-        (points_to_array(face) for face in faces),
+        candidates,
         key=lambda points: (centroid(points)[0] - to[0]) ** 2
         + (centroid(points)[1] - to[1]) ** 2,
     )

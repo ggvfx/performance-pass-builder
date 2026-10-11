@@ -13,6 +13,33 @@ again.
 
 ---
 
+## Phase 3 — 3.4
+
+- [ ] **The search region crops the picture rather than filtering the
+      results.** Both would stop a face being stolen; cropping also gives
+      the model more of the face to look at. Measured on the real clip
+      before committing to it: 2.10px from the baseline against the
+      whole-frame search's 2.33px, at the same speed. `search_padding=None`
+      keeps the whole-frame behaviour so the two stay comparable.
+- [ ] **A small face's region is grown to at least 192 pixels.** MediaPipe's
+      detector runs at 192x192, so cropping tight to a distant face would
+      hand it a magnified thumbnail and lose the only advantage cropping
+      has — on exactly the shot it should help most.
+- [ ] **While a face is missing the region stays where it was.** A blink or
+      a blur recovers; someone who leaves and returns elsewhere does not,
+      and wants another seed. A widening search would recover more and also
+      start stealing faces, which is the thing this exists to prevent.
+- [ ] **The two-face test clip is built from the one-face clip, side by
+      side.** It proves a seed picks one face of several and holds it. It is
+      *not* a substitute for real two-person footage: these faces never move
+      or cross, so the hard case is still untested and still on the wanted
+      list.
+- [ ] **The pseudocode guard test is gone.** It asserted the remaining stubs
+      raise rather than return None, and there are none left. Keeping a test
+      that forbids pseudocode would be wrong for this project — writing
+      stubs first is deliberate — so it was replaced by real tests of the
+      box arithmetic.
+
 ## Phase 3 — 3.3
 
 - [ ] **`FrameReader` can now seek, and a seek is only exact on an all-intra

@@ -743,24 +743,82 @@ def test_a_frame_outside_the_track_raises_rather_than_reading_as_a_gap():
             track.landmarks_on(frame)
 
 
-# --- THE SKELETON ITSELF ---
+# --- BOX ARITHMETIC ---
+
+# The one owner of fractions-to-pixels. Two modules rounding their own way is
+# how a search box and the crop it produces end up a pixel apart.
 
 
-def test_nothing_unimplemented_returns_none():
+def test_a_box_becomes_whole_pixels():
+    box = NormalisedBox(left=0.25, top=0.25, right=0.75, bottom=0.75)
+
+    assert box.to_pixels(1920, 1080) == (480, 270, 1440, 810)
+
+
+def test_pixels_round_outward_so_no_part_of_the_face_is_lost():
     """
-    The anti-pattern this guards: `pass` as a placeholder returns None, so an
-    unimplemented function flows through the app pretending it worked.
-
-    What is left is the box arithmetic, which 3.4 needs for the padded search
-    region. 3.3 chose faces by comparing boxes in fractions and never had to
-    reach pixels. The FaceTrack methods were here too until 3.2.
+    Left and top floor, right and bottom ceil. Rounding inward would shave a
+    pixel off the box someone drew around a face.
     """
-    unimplemented = {
-        "NormalisedBox.to_pixels": lambda: a_box().to_pixels(1920, 1080),
-        "NormalisedBox.padded": lambda: a_box().padded(0.5),
-    }
+    # Deliberately between pixels: 100.5 and 899.5 on a 1000-pixel picture.
+    box = NormalisedBox(left=0.1005, top=0.1005, right=0.8995, bottom=0.8995)
 
-    for name, call in unimplemented.items():
-        print(f"still pseudocode: {name}")
-        with pytest.raises(NotImplementedError):
-            call()
+    left, top, right, bottom = box.to_pixels(1000, 1000)
+
+    assert (left, top) == (100, 100), "the near edges should floor"
+    assert (right, bottom) == (900, 900), "the far edges should ceil"
+
+
+def test_a_box_is_never_narrower_than_one_pixel():
+    """A crop that comes back empty would be an exception somewhere far away."""
+    hair = NormalisedBox(left=0.5, top=0.5, right=0.5001, bottom=0.5001)
+
+    left, top, right, bottom = hair.to_pixels(100, 100)
+
+    assert right > left
+    assert bottom > top
+
+
+def test_pixels_stay_inside_the_picture():
+    whole = NormalisedBox(left=0.0, top=0.0, right=1.0, bottom=1.0)
+
+    assert whole.to_pixels(1920, 1080) == (0, 0, 1920, 1080)
+
+
+def test_padding_grows_a_box_around_its_own_centre():
+    """0.5 on each side makes a box twice as wide and twice as tall."""
+    box = NormalisedBox(left=0.4, top=0.4, right=0.6, bottom=0.6)
+
+    padded = box.padded(0.5)
+
+    assert (padded.left, padded.right) == pytest.approx((0.3, 0.7))
+    assert (padded.top, padded.bottom) == pytest.approx((0.3, 0.7))
+
+
+def test_padding_is_clamped_to_the_picture():
+    """
+    A face near the edge gets a smaller pad rather than an invalid box, so
+    callers never have to guard it.
+    """
+    corner = NormalisedBox(left=0.0, top=0.9, right=0.1, bottom=1.0)
+
+    padded = corner.padded(1.0)
+
+    assert padded.left == 0.0
+    assert padded.bottom == 1.0
+    assert (padded.right, padded.top) == pytest.approx((0.2, 0.8))
+
+
+def test_padding_leaves_the_original_alone():
+    """The tracker keeps the face's own bounds and derives a region each frame."""
+    box = NormalisedBox(left=0.4, top=0.4, right=0.6, bottom=0.6)
+
+    box.padded(0.5)
+
+    assert (box.left, box.right) == (0.4, 0.6)
+
+
+def test_padding_by_nothing_changes_nothing():
+    box = NormalisedBox(left=0.4, top=0.3, right=0.6, bottom=0.7)
+
+    assert box.padded(0.0).model_dump() == box.model_dump()

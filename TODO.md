@@ -223,7 +223,15 @@ a small face in a wide shot. Those are what 3.4 onward actually need.
       by frame hash; the backward half agrees with a plain forward run to
       2.39px against the forward half's 2.25px, which is the number that
       says the reversed frames are aligned.*
-- [ ] **3.4** The search box following the face frame to frame
+- [x] **3.4** The search box following the face frame to frame
+      *Each frame is cropped to a region round the last known position and
+      only that is searched, so a face wandering into shot is not a
+      candidate at all. Measured rather than assumed: 2.10px from the
+      baseline against the whole-frame search's 2.33px, same speed. Proven
+      on a two-face clip built from the one-face one side by side — seeding
+      either face tracks that face for all 240 frames and never crosses.
+      `NormalisedBox.to_pixels` and `.padded` implemented, which was the
+      last pseudocode in the skeleton.*
 - [ ] **3.5** Several faces, one tracker each
 - [ ] **3.6** Several seeds per face — segments between them, backward from the
       first, forward from each to the next. Every frame records which seed

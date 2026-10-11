@@ -200,6 +200,20 @@ FACE_TRACKING_CONFIDENCE = 0.5    # Minimum score to carry a track to the next f
 # being a memory hog for a two-second speedup is a poor trade.
 BACKWARD_WINDOW_BYTES = 256 * 1024 * 1024
 
+# The tracker looks inside a box this much larger than where the face was on
+# the previous frame. 0.5 makes it twice as wide and twice as tall.
+#
+# It is the whole answer to two faces crossing: a face that wanders into the
+# picture is not in the search region, so it cannot take the track. Too tight
+# and a fast head turn escapes it; too loose and it stops excluding anyone.
+FACE_SEARCH_PADDING = 0.5
+
+# A search region is grown to at least this many pixels on its short side
+# before being cropped. MediaPipe's face detector works at 192x192, so
+# handing it a 60-pixel crop of a distant face throws away the one advantage
+# cropping has — that the face fills more of what the model sees.
+MIN_SEARCH_PIXELS = 192
+
 # How many faces the landmarker is asked for on a seeded run. The seed box
 # picks one of them, so this is "how many candidates to choose between", not
 # how many are tracked. Five covers a group shot without paying for faces

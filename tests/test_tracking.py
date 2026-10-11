@@ -33,6 +33,8 @@ from src.performance.tracking import (
     face_in_box,
     face_nearest,
     overlap,
+    search_region,
+    to_full_frame,
     points_to_array,
     report_for,
     timestamp_ms,
@@ -87,6 +89,34 @@ def one_face_mezzanine(toolchain, one_face_source, tmp_path_factory) -> Path:
     return MezzanineBuilder(toolchain).build(
         one_face_source, tmp_path_factory.mktemp("mezzanine") / "one_face.mov"
     )
+
+
+@pytest.fixture(scope="session")
+def two_faces(toolchain, one_face, tmp_path_factory):
+    """
+    A two-face clip, built from the one-face one side by side.
+
+    Real two-person footage is still wanted — see WANTED.md — and this is
+    not a substitute for it: the faces never move or cross. What it does
+    prove is that a seed picks one face out of several and the track stays
+    on it, which is the part that can be tested without waiting for footage.
+    """
+    from src.media.mezzanine import MezzanineBuilder
+    from src.media.probe import SourceProbe
+
+    directory = tmp_path_factory.mktemp("two_faces")
+    doubled = directory / "two_faces.mp4"
+
+    toolchain.run_ffmpeg([
+        "-y", "-i", str(one_face), "-i", str(one_face),
+        "-filter_complex",
+        "[0:v]scale=960:540[l];[1:v]scale=960:540[r];[l][r]hstack=inputs=2",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        str(doubled),
+    ])
+
+    source = SourceProbe(toolchain).probe(doubled)
+    return source, MezzanineBuilder(toolchain).build(source, directory / "m.mov")
 
 
 @pytest.fixture(scope="session")
@@ -300,14 +330,6 @@ def points_at(x_from, x_to, y_from, y_to) -> np.ndarray:
     return points
 
 
-def a_face(x_from, x_to, y_from, y_to):
-    """Stands in for one of MediaPipe's landmark lists."""
-    return [
-        type("Point", (), {"x": float(x), "y": float(y), "z": float(z)})()
-        for x, y, z in points_at(x_from, x_to, y_from, y_to)
-    ]
-
-
 def test_a_box_is_the_bounds_of_the_points():
     box = bounding_box(points_at(0.2, 0.4, 0.3, 0.7))
 
@@ -341,7 +363,7 @@ def test_overlap_is_measured_over_the_union():
 
 
 def test_the_face_inside_the_box_is_the_one_chosen():
-    faces = [a_face(0.05, 0.25, 0.1, 0.5), a_face(0.70, 0.90, 0.1, 0.5)]
+    faces = [points_at(0.05, 0.25, 0.1, 0.5), points_at(0.70, 0.90, 0.1, 0.5)]
     box = NormalisedBox(left=0.68, top=0.08, right=0.92, bottom=0.52)
 
     chosen = face_in_box(faces, box)
@@ -354,7 +376,7 @@ def test_a_box_over_nothing_chooses_no_face():
     A box drawn on empty background says so, rather than quietly returning
     whoever happened to be nearest.
     """
-    faces = [a_face(0.05, 0.25, 0.1, 0.5)]
+    faces = [points_at(0.05, 0.25, 0.1, 0.5)]
     empty = NormalisedBox(left=0.8, top=0.8, right=0.95, bottom=0.95)
 
     assert face_in_box(faces, empty) is None
@@ -366,7 +388,7 @@ def test_no_faces_at_all_chooses_none():
 
 
 def test_the_nearest_face_is_the_one_followed():
-    faces = [a_face(0.05, 0.25, 0.1, 0.5), a_face(0.70, 0.90, 0.1, 0.5)]
+    faces = [points_at(0.05, 0.25, 0.1, 0.5), points_at(0.70, 0.90, 0.1, 0.5)]
 
     chosen = face_nearest(faces, (0.8, 0.3))
 
@@ -375,7 +397,7 @@ def test_the_nearest_face_is_the_one_followed():
 
 def test_with_nowhere_to_follow_the_first_face_is_taken():
     """The first frame of a run has no previous position to go on."""
-    assert face_nearest([a_face(0.05, 0.25, 0.1, 0.5)], None) is not None
+    assert face_nearest([points_at(0.05, 0.25, 0.1, 0.5)], None) is not None
 
 
 def test_a_centroid_is_the_middle_of_the_points():
@@ -474,6 +496,135 @@ def test_a_seeded_run_reports_progress_over_the_whole_source(
     )
 
     assert seen[-1] == one_face_source.frame_count
+
+
+# --- THE SEARCH REGION ---
+
+
+def test_a_region_is_the_face_plus_its_padding():
+    face = NormalisedBox(left=0.4, top=0.4, right=0.6, bottom=0.6)
+
+    region = search_region(face, 1920, 1080, padding=0.5, minimum_pixels=0)
+
+    assert (region.left, region.right) == pytest.approx((0.3, 0.7))
+    assert (region.top, region.bottom) == pytest.approx((0.3, 0.7))
+
+
+def test_a_region_is_clamped_to_the_picture():
+    """A face at the edge gets a smaller region, not an invalid one."""
+    corner = NormalisedBox(left=0.0, top=0.0, right=0.1, bottom=0.1)
+
+    region = search_region(corner, 1920, 1080, padding=2.0, minimum_pixels=0)
+
+    assert region.left == 0.0
+    assert region.top == 0.0
+    assert region.right <= 1.0
+
+
+def test_a_small_face_is_grown_to_something_worth_cropping():
+    """
+    The reason the minimum exists. A face 2% of a 1920 frame is 38 pixels;
+    padded it is 76, and MediaPipe's detector runs at 192x192 — so without
+    this the crop would be a magnified thumbnail and cropping would buy
+    nothing on exactly the shot it should help most.
+    """
+    tiny = NormalisedBox(left=0.49, top=0.49, right=0.51, bottom=0.51)
+
+    region = search_region(tiny, 1920, 1080, padding=0.5, minimum_pixels=192)
+    left, top, right, bottom = region.to_pixels(1920, 1080)
+
+    print(f"{right - left}x{bottom - top} pixels")
+    assert min(right - left, bottom - top) >= 192
+
+
+def test_a_face_already_large_enough_is_not_grown():
+    big = NormalisedBox(left=0.3, top=0.3, right=0.7, bottom=0.7)
+
+    region = search_region(big, 1920, 1080, padding=0.1, minimum_pixels=192)
+
+    assert (region.left, region.right) == pytest.approx((0.26, 0.74))
+
+
+# --- MAPPING BACK OUT OF A CROP ---
+
+
+def test_landmarks_from_a_crop_become_fractions_of_the_picture():
+    """
+    Without this the mesh would land in the top-left corner at the wrong
+    scale, because MediaPipe measures against whatever it was handed.
+    """
+    middle = np.zeros((LANDMARK_COUNT, 3), dtype=np.float32)
+    middle[:, 0] = 0.5
+    middle[:, 1] = 0.5
+
+    # A crop of the right-hand quarter, vertically centred.
+    mapped = to_full_frame(middle, (1440, 270, 1920, 810), 1920, 1080)
+
+    assert float(mapped[0, 0]) == pytest.approx(0.875)
+    assert float(mapped[0, 1]) == pytest.approx(0.5)
+
+
+def test_a_full_frame_crop_changes_nothing():
+    points = np.zeros((LANDMARK_COUNT, 3), dtype=np.float32)
+    points[:, 0] = 0.25
+    points[:, 1] = 0.75
+
+    mapped = to_full_frame(points, (0, 0, 1920, 1080), 1920, 1080)
+
+    assert float(mapped[0, 0]) == pytest.approx(0.25)
+    assert float(mapped[0, 1]) == pytest.approx(0.75)
+
+
+def test_depth_is_scaled_with_the_crop():
+    """
+    MediaPipe's z is roughly in the same units as x, so a crop a third of
+    the width would otherwise report depths three times too large.
+    """
+    points = np.zeros((LANDMARK_COUNT, 3), dtype=np.float32)
+    points[:, 2] = 0.3
+
+    mapped = to_full_frame(points, (0, 0, 640, 1080), 1920, 1080)
+
+    assert float(mapped[0, 2]) == pytest.approx(0.1)
+
+
+# --- TWO FACES ---
+
+
+def test_the_seeded_face_is_the_one_tracked(tracker, two_faces):
+    """
+    What the search region is for. Two identical faces, one seeded: the
+    track must stay on the one the box was drawn round for every frame, not
+    wander to the other.
+    """
+    source, mezzanine = two_faces
+    right = Seed(frame=0, box=NormalisedBox(left=0.70, top=0.18, right=0.83, bottom=0.68))
+
+    track = tracker.track_from_seed(source, right, label="Right", path=mezzanine)
+
+    middles = [
+        float(track.landmarks_on(frame)[:, 0].mean())
+        for frame in range(source.frame_count)
+        if track.tracked[frame]
+    ]
+    print(f"centroid x ran {min(middles):.3f} to {max(middles):.3f}")
+    assert track.tracked.all()
+    assert all(x > 0.5 for x in middles), "the track crossed to the other face"
+
+
+def test_seeding_the_other_face_tracks_the_other_face(tracker, two_faces):
+    """The mirror of the above, so the first is not passing by luck."""
+    source, mezzanine = two_faces
+    left = Seed(frame=0, box=NormalisedBox(left=0.17, top=0.18, right=0.30, bottom=0.68))
+
+    track = tracker.track_from_seed(source, left, label="Left", path=mezzanine)
+
+    middles = [
+        float(track.landmarks_on(frame)[:, 0].mean())
+        for frame in range(source.frame_count)
+        if track.tracked[frame]
+    ]
+    assert all(x < 0.5 for x in middles), "the track crossed to the other face"
 
 
 # --- NO FACE ---

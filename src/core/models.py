@@ -38,6 +38,7 @@ Notes:
     which would take most of that back.
 """
 
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -699,13 +700,16 @@ class NormalisedBox(BaseModel):
             pixels their own way is how a search box and the crop it produces
             end up a pixel apart.
         """
-        # PSEUDOCODE
-        # 1. Multiply each fraction by width or height as appropriate.
-        # 2. Floor left and top, ceil right and bottom, so a box never loses a
-        #    pixel of the face it was drawn around.
-        # 3. Clamp to the picture, and guarantee at least one pixel in each
-        #    axis so a crop can never come back empty.
-        raise NotImplementedError
+        left = max(0, min(width - 1, math.floor(self.left * width)))
+        top = max(0, min(height - 1, math.floor(self.top * height)))
+
+        # Outward on both edges, so a box never loses a pixel of the face it
+        # was drawn around, then held one past the near edge so a crop is
+        # never empty however thin the box was.
+        right = max(left + 1, min(width, math.ceil(self.right * width)))
+        bottom = max(top + 1, min(height, math.ceil(self.bottom * height)))
+
+        return left, top, right, bottom
 
     def padded(self, by: float) -> "NormalisedBox":
         """
@@ -726,11 +730,15 @@ class NormalisedBox(BaseModel):
             Clamping means a face near the edge gets a smaller pad rather than
             an invalid box, so callers never have to guard it.
         """
-        # PSEUDOCODE
-        # 1. Work out the current width and height as fractions.
-        # 2. Expand each edge outward by `by` times that dimension.
-        # 3. Clamp every edge into 0..1 and return a new box.
-        raise NotImplementedError
+        width = self.right - self.left
+        height = self.bottom - self.top
+
+        return NormalisedBox(
+            left=max(0.0, self.left - width * by),
+            top=max(0.0, self.top - height * by),
+            right=min(1.0, self.right + width * by),
+            bottom=min(1.0, self.bottom + height * by),
+        )
 
 
 class Seed(BaseModel):
