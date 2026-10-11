@@ -205,11 +205,36 @@
                     another box wherever a track breaks &mdash; past a turn away from camera,
                     or a wipe.
                 </p>
-                <div class="placeholder">The proxy plays here, with the boxes drawn over it.</div>
+                <p id="player-missing" class="placeholder">
+                    Inspect and prepare some footage on the Source step, and the
+                    numbered proxy plays here.
+                </p>
+
+                <div id="player-shell" hidden>
+                    <video id="proxy-player" class="proxy" preload="auto"></video>
+
+                    <div class="transport">
+                        <button class="secondary" data-step-frames="-10" disabled>&laquo; 10</button>
+                        <button class="secondary" data-step-frames="-1" disabled>&lsaquo; 1</button>
+                        <button class="secondary" data-step-frames="1" disabled>1 &rsaquo;</button>
+                        <button class="secondary" data-step-frames="10" disabled>10 &raquo;</button>
+                        <span id="player-frame" class="frame-readout">0 / 0</span>
+                    </div>
+
+                    <input type="range" id="player-scrub" class="scrub" min="0" max="0"
+                           value="0" step="1" disabled>
+
+                    <p class="hint">
+                        The number burned into the picture is the check. If it disagrees
+                        with the readout, the player is wrong &mdash; visibly, rather than
+                        silently. Arrow keys step a frame, up and down step ten, space plays.
+                    </p>
+                </div>
+
                 <div class="action-row">
                     <button id="face-add" disabled>Add a face</button>
                     <button id="face-seed" class="secondary" disabled>Add a seed here</button>
-                    <span class="status">Arrives at task 5.4.</span>
+                    <span class="status">Drawing arrives at task 3.13.</span>
                 </div>
             </section>
 

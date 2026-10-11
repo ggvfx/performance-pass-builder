@@ -16,12 +16,36 @@ time was eleven more rounds to learn things like how the mesh alpha is
 unpremultiplied — which is in the code, the docstrings and the commits
 already. They are marked as records.
 
-What is left open is what still wants your judgement, and it is one thing.
-Everything else below is history: accurate, worth searching, not worth
-reading front to back.
+**Nothing is open as of 2026-10-11.** Everything below is history:
+accurate, worth searching, not worth reading front to back. New decisions
+go at the top as they are taken, and the next batch will come from building
+3.12 onward.
 
 Delete this file when it stops earning its place. The point was to stop
 decisions getting lost while I worked unattended, not to become a backlog.
+
+---
+
+## Phase 3 — the review player (3.12)
+
+- [ ] **`/api/proxy` derives the file from the source rather than being
+      handed a path.** The page sends the footage path and gets back a file
+      it never named — the route can only ever open `<stem>_proxy.mp4`
+      inside a working folder this app chose. Same reasoning as the preview
+      route taking a job id.
+- [ ] **Inspect now reports whether a source is already prepared.** Without
+      it, a source prepared yesterday looked untouched today and the proxy
+      could not be shown until it had been built a second time.
+- [ ] **Seeking lands on the middle of a frame's duration**, ported
+      unchanged from minicut. `currentTime` after a seek is a float that
+      does not sit on a frame boundary, and at 24000/1001 rounding it the
+      obvious way drifts. The number burned into the picture is the check.
+- [ ] **I could not confirm playback in a browser.** The automation browser
+      stopped playing video partway through this session — a file it had
+      played an hour earlier also stopped loading, in a fresh tab. I spent a
+      while treating that as a bug in the proxy before running the control
+      that showed otherwise. The file decodes cleanly and its container is
+      textbook; **the first thing to do at 3.13 is open it and look.**
 
 ---
 
@@ -272,7 +296,11 @@ Two of these are bugs I found and fixed; the rest are calls worth your eye.
       `two_faces_cross_and_exit.mp4` is the hardest clip here — a genuine
       crossing, an exit, profiles, night neon, and detection flickering
       throughout.
-- [ ] **The confidence thresholds now have something to tune against.** On
+- [x] **The confidence thresholds now have something to tune against.**
+      *Agreed 2026-10-11: left at 0.5 until the 3.18 session, and **made
+      adjustable** rather than only tuned — one Tolerance setting per seed,
+      so the segment after someone turns away can differ from the opening
+      without re-tracking what already works. That is 3.19.* On
       the desert clip the tracker does not find a face at frame 120 that
       looks perfectly findable by eye, and on the night clip detection
       flickers on 24 frames of 240. Both are at MediaPipe's default 0.5.
@@ -476,7 +504,9 @@ Two of these are bugs I found and fixed; the rest are calls worth your eye.
       the one place in the project not using a typed model. **Agreed
       2026-10-10:** a dict is acceptable for something that is only ever
       written out, never read back and acted on.
-- [~] **A job with no deliverables has not passed.** `all([])` is True, so
+- [x] **A job with no deliverables has not passed.** *Kept, agreed
+      2026-10-11 once 3.17 made it concrete: a green tick over an empty
+      folder is the failure this prevents.* `all([])` is True, so
       "produced nothing" would otherwise read as success. **Deferred
       2026-10-10** — nothing is pending either way, so it stays as written
       until there is a real job to see it against.
@@ -485,7 +515,9 @@ Two of these are bugs I found and fixed; the rest are calls worth your eye.
       2026-10-10:** one machine-readable field only. If reading it is ever
       awkward the UI formats it for display, rather than the file carrying
       two timestamps that can disagree.
-- [~] **A `DeliverableRecord` carries the whole stack**, not just the format.
+- [x] **A `DeliverableRecord` carries the whole stack** *— kept, agreed
+      2026-10-11. At 3.17 this is what records that a file was mesh over
+      grey rather than just "an mp4".* It carries the stack, not just the format.
       Without it, "why does this composite look like that" has no answer six
       months on. **Deferred 2026-10-10**, same reason — easier to judge
       against a real sidecar than in the abstract.

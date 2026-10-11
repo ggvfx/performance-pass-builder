@@ -319,10 +319,21 @@ colour scheme are all unreachable from the app — and nothing produces a file
 you could hand to anything. Depth would add a second unfinished system on
 top of an unfinished one.
 
-- [ ] **3.12** The proxy on the Faces step: play, scrub, step a frame at a
+- [x] **3.12** The proxy on the Faces step: play, scrub, step a frame at a
       time, and the frame number read off the burned-in digits rather than
       from the browser's idea of time. *Ports minicut's `player.js`, which
       exists for exactly this problem*
+      *`player.js`, plus `/api/proxy` which derives the proxy's location
+      from the source rather than being handed a path. Inspect now reports
+      whether a source is already prepared, so one prepared in an earlier
+      session still shows its proxy. Arrow keys step a frame, up and down
+      ten, space plays.*
+      **Playback not confirmed in a browser this session** — the automation
+      browser stopped playing video partway through, including a file it had
+      played an hour earlier, so the failure is not the app's. The proxy
+      decodes cleanly, its container is textbook with the metadata at the
+      front, and the transport arithmetic is minicut's unchanged. First
+      thing to check at 3.13.
 - [ ] **3.13** Draw a box, name the face, remove it. **Adding a seed to an
       existing face has to be the more obvious action** — a returning person
       given a new face gets a new colour, and every prompt naming the old one
@@ -344,6 +355,20 @@ top of an unfinished one.
       *Everything underneath this exists and is tested — the stack, the
       constant layers, the writer, the validator, the sidecar. Nothing calls
       them*
+- [ ] **3.19** **Tolerance, per seed.** One setting rather than MediaPipe's
+      three confidences — three dials is a panel nobody can reason about,
+      one slider is something you can turn while watching the result. It
+      lives on the Faces step as the default for new seeds, and **on each
+      seed**, so the stretch after someone turns away can be loosened
+      without touching the parts that already track well. Recorded in
+      `selection.json` and the sidecar, so a track is reproducible and it is
+      visible why one segment behaved differently.
+      *Changing it re-tracks that face, which 3.15 already does. And
+      loosening is not free: more detections means more false ones, and the
+      search region will follow a false face as readily as a real one —
+      which is why it is per seed rather than global.*
+      *After 3.18 deliberately: a dial is worth having once you have seen
+      what it needs to fix.*
 - [ ] **3.18** **Checkpoint: judge it.** The three real clips, end to end in
       the app, looked at rather than measured. Settles the confidence
       thresholds, the smoothing strength, the mesh colours and line weights,

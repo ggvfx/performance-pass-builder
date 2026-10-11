@@ -55,9 +55,9 @@ def test_inspecting_a_clip_answers_in_the_request(clips):
     response = client.post("/api/inspect", json={"path": str(clips["film24"])})
 
     assert response.status_code == 200
-    report = response.json()
-    assert report["source"]["fps_numerator"] == 24
-    assert report["can_build"] is True
+    answer = response.json()
+    assert answer["report"]["source"]["fps_numerator"] == 24
+    assert answer["report"]["can_build"] is True
 
 
 @needs_ffmpeg
@@ -69,9 +69,70 @@ def test_a_refusal_is_an_answer_not_an_error(clips):
     response = client.post("/api/inspect", json={"path": str(clips["vfr"])})
 
     assert response.status_code == 200
-    report = response.json()
+    report = response.json()["report"]
     assert report["can_build"] is False
     assert report["refusal_reason"]
+
+
+@needs_ffmpeg
+def test_inspecting_says_whether_it_has_been_prepared(clips, tmp_path, monkeypatch):
+    """
+    A source prepared in an earlier session is still prepared. Without this
+    the page would call it untouched and refuse to show the proxy until it
+    had been built a second time.
+    """
+    from src.ui.routes import performance
+
+    monkeypatch.setattr(performance, "suggested_output_dir", lambda _path: tmp_path)
+    clip = str(clips["film24"])
+
+    assert client.post("/api/inspect", json={"path": clip}).json()["prepared"] is False
+
+    finished(client.post("/api/prepare", json={"path": clip}).json()["id"])
+
+    assert client.post("/api/inspect", json={"path": clip}).json()["prepared"] is True
+
+
+# --- THE PROXY ---
+
+
+def test_an_unprepared_source_has_no_proxy_to_serve():
+    response = client.get("/api/proxy", params={"path": "D:/nowhere/absent.mov"})
+
+    assert response.status_code == 404
+    assert "prepared" in response.json()["detail"]
+
+
+@needs_ffmpeg
+def test_the_proxy_is_served_once_it_exists(clips, tmp_path, monkeypatch):
+    from src.ui.routes import performance
+
+    monkeypatch.setattr(performance, "suggested_output_dir", lambda _path: tmp_path)
+    clip = str(clips["film24"])
+
+    finished(client.post("/api/prepare", json={"path": clip}).json()["id"])
+    response = client.get("/api/proxy", params={"path": clip})
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "video/mp4"
+
+
+def test_the_proxy_route_derives_its_path_rather_than_opening_one():
+    """
+    The page sends a source and gets back a file it never named. A route
+    that opens whatever path it is handed will open anything on the disk.
+    """
+    import inspect as inspect_module
+
+    from src.ui.routes.performance import _proxy_path, proxy
+
+    assert list(inspect_module.signature(proxy).parameters) == ["path"]
+
+    from pathlib import Path as RealPath
+
+    derived = _proxy_path(RealPath("D:/footage/take_01.mov"))
+    assert derived.name == "take_01_proxy.mp4"
+    assert ".performance-work" in str(derived)
 
 
 # --- PREPARE ---

@@ -17,6 +17,11 @@ export const state = {
     activeStep: "source",      // The step currently shown
     sourcePath: "",            // The footage to build a pass from
 
+    // The probed source, once it has been inspected and prepared. The player
+    // counts frames against it, so it is null until there is a proxy to
+    // count against rather than defaulting to something plausible.
+    source: null,
+
     // Where each step has got to: todo, running or done. The strip reads this,
     // and it is the one place that knows whether a pass has been run — a
     // layer in the stack is only usable once its step says done.

@@ -607,3 +607,38 @@ summary .summary { margin: 0; }
     border-radius: 2px;
     background: #444;
 }
+
+/* ===== THE REVIEW PLAYER ===== */
+
+.proxy {
+    display: block;
+    width: 100%;
+    border-radius: 4px;
+    background: #000;
+}
+
+.transport {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+/*
+ * Tabular figures and a fixed width, so the number does not shuffle the
+ * buttons sideways every time it gains a digit.
+ */
+.frame-readout {
+    margin-left: 8px;
+    min-width: 90px;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+}
+
+.scrub {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    accent-color: var(--ok);
+}

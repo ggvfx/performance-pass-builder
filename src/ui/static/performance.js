@@ -10,6 +10,7 @@
  * wherever they appear.
  */
 
+import { closeProxy, openProxy } from "./player.js";
 import { setStepState } from "./steps.js";
 import { state } from "./state.js";
 
@@ -105,7 +106,8 @@ async function inspect() {
     status.textContent = "Reading…";
 
     try {
-        const report = await post("/api/inspect", { path });
+        const answer = await post("/api/inspect", { path });
+        const report = answer.report;
         const source = report.source;
 
         document.getElementById("fact-rate").textContent =
@@ -127,6 +129,22 @@ async function inspect() {
 
         document.getElementById("prepare-button").disabled = !report.can_build;
         document.getElementById("faces-process").disabled = !report.can_build;
+
+        // A source prepared in an earlier session is still prepared. Without
+        // this it would look untouched and the proxy could not be shown
+        // until it had been built a second time.
+        if (report.can_build && answer.prepared) {
+            openProxy(source);
+            setStepState("source", "done");
+            document.getElementById("prepare-status").textContent =
+                "Already prepared.";
+        } else {
+            closeProxy(
+                report.can_build
+                    ? "Prepare this footage and the numbered proxy plays here."
+                    : report.refusal_reason
+            );
+        }
     } catch (error) {
         status.textContent = error.message;
         status.classList.add("blocked");
@@ -147,6 +165,10 @@ async function prepare() {
             buttons: [document.getElementById("prepare-button")],
         });
         setStepState("source", "done");
+
+        // The proxy exists now, so the Faces step has something to scrub.
+        const answer = await post("/api/inspect", { path: sourcePath() });
+        if (answer.prepared) openProxy(answer.report.source);
     } catch (error) {
         status.textContent = error.message;
         status.classList.add("blocked");

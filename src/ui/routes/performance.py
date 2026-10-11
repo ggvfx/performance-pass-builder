@@ -74,6 +74,20 @@ class PreparedPaths(BaseModel):
     proxy: str
 
 
+class Inspected(BaseModel):
+    """
+    A probe, plus whether this source has been prepared before.
+
+    Notes:
+        The page needs both to decide what to offer. Without the second, a
+        source prepared yesterday looks unprepared today and the proxy
+        cannot be shown until it is built again.
+    """
+
+    report: ProbeReport
+    prepared: bool
+
+
 class TrackResult(BaseModel):
     """What the page needs after a track, and nothing it does not."""
 
@@ -103,7 +117,7 @@ class JobState(BaseModel):
 
 
 @router.post("/api/inspect")
-def inspect(request: SourceRequest) -> ProbeReport:
+def inspect(request: SourceRequest) -> Inspected:
     """
     What the footage is, and whether a pass can be built from it.
 
@@ -120,9 +134,15 @@ def inspect(request: SourceRequest) -> ProbeReport:
         raise HTTPException(status_code=404, detail=f"No file at {source_path}")
 
     try:
-        return probe.inspect(source_path)
+        report = probe.inspect(source_path)
     except Exception as error:  # noqa: BLE001 - ffprobe can fail many ways
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+    return Inspected(
+        report=report,
+        prepared=_proxy_path(source_path).is_file()
+        and _mezzanine_path(source_path).is_file(),
+    )
 
 
 # --- PREPARE ---
@@ -147,9 +167,9 @@ def prepare(request: SourceRequest) -> JobState:
         job.say(f"Reading {source_path.name}")
         source = probe.probe(source_path)
 
-        work_dir = ensure_directory(work_dir_for(suggested_output_dir(source_path)))
-        mezzanine_path = work_dir / f"{source_path.stem}_mezzanine.mov"
-        proxy_path = work_dir / f"{source_path.stem}{config.PROXY_SUFFIX}"
+        ensure_directory(_work_dir(source_path))
+        mezzanine_path = _mezzanine_path(source_path)
+        proxy_path = _proxy_path(source_path)
 
         job.total = source.frame_count * 2
 
@@ -194,8 +214,8 @@ def track(request: SourceRequest) -> JobState:
 
     def work(job) -> dict:
         source = probe.probe(source_path)
-        work_dir = ensure_directory(work_dir_for(suggested_output_dir(source_path)))
-        mezzanine_path = work_dir / f"{source_path.stem}_mezzanine.mov"
+        work_dir = ensure_directory(_work_dir(source_path))
+        mezzanine_path = _mezzanine_path(source_path)
 
         reading = mezzanine_path if mezzanine_path.is_file() else source_path
         if reading is source_path:
@@ -239,6 +259,37 @@ def track(request: SourceRequest) -> JobState:
         ).model_dump()
 
     return _start("track", work)
+
+
+@router.get("/api/proxy")
+def proxy(path: str):
+    """
+    The numbered review proxy for a source, for the page to scrub.
+
+    Args:
+        path: The source. The proxy's location is *derived* from it the same
+            way `prepare` derived it, never taken from the page.
+
+    Raises:
+        HTTPException: The source has not been prepared.
+
+    Notes:
+        The page sends a source path and gets back a file it never named.
+        A route that opens whatever path it is handed will open anything on
+        the disk; this one can only ever open `<stem>_proxy.mp4` inside a
+        working folder this app chose — and the server listens on loopback
+        only, for the same family of reasons.
+    """
+    source_path = Path(path)
+    proxy_path = _proxy_path(source_path)
+
+    if not proxy_path.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail=f"{source_path.name} has not been prepared yet",
+        )
+
+    return FileResponse(proxy_path, media_type="video/mp4")
 
 
 @router.get("/api/preview/{job_id}")
@@ -357,6 +408,27 @@ def _write_preview(
     job.progress(base + written, job.total)
     logging.info(f"Wrote a {written}-frame preview to {path}")
     return path
+
+
+def _work_dir(source_path: Path) -> Path:
+    """
+    The hidden working folder for a source.
+
+    Notes:
+        Derived in one place so `prepare`, `track` and `proxy` cannot
+        disagree about where a mezzanine went — three copies of this
+        arithmetic is how a prepared source becomes invisible to the thing
+        that needs it.
+    """
+    return work_dir_for(suggested_output_dir(source_path))
+
+
+def _mezzanine_path(source_path: Path) -> Path:
+    return _work_dir(source_path) / f"{source_path.stem}_mezzanine.mov"
+
+
+def _proxy_path(source_path: Path) -> Path:
+    return _work_dir(source_path) / f"{source_path.stem}{config.PROXY_SUFFIX}"
 
 
 def _start(kind: str, work) -> JobState:
