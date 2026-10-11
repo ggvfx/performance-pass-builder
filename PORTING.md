@@ -160,6 +160,16 @@ a `.npz` back.
 
 ---
 
+## Written here, not ported
+
+Modules someone might reasonably go looking for above and not find, because
+they have no minicut ancestor at all:
+
+| Module | Why there was nothing to take |
+|---|---|
+| `src/performance/model_file.py` | minicut needed no model file. The download, the pinned SHA-256 and the cache are new |
+| `src/composite/compositor.py` | minicut cut video up; it never combined layers |
+
 ## Checklist
 
 Ticked when the module is in this repo, trimmed, modernised, carrying its

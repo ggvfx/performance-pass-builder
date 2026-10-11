@@ -57,6 +57,22 @@ from pydantic import BaseModel, Field, computed_field, field_validator, model_va
 # landmark array.
 LANDMARK_COUNT = 478
 
+# The MediaPipe Face Landmarker bundle. Facts about one specific file, which
+# is why they are here rather than in config.py: changing them is changing
+# which model this app uses, not configuring it.
+#
+# Never committed — CLAUDE.md non-negotiable 6 — so these are how a downloaded
+# copy is proven to be the file we tested against. The hash was taken from the
+# bundle actually used: 1 face found on the test clip, 478 landmarks returned,
+# which is LANDMARK_COUNT above.
+MODEL_FILENAME = "face_landmarker.task"
+MODEL_URL = (
+    "https://storage.googleapis.com/mediapipe-models/face_landmarker/"
+    "face_landmarker/float16/1/face_landmarker.task"
+)
+MODEL_SHA256 = "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff"
+MODEL_BYTES = 3_758_596
+
 # Bumped when a written file's shape changes, so an old selection.json is
 # recognised as old rather than half-read.
 SELECTION_SCHEMA_VERSION = 1

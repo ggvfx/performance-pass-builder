@@ -8,7 +8,7 @@ is answered before anything is added rather than after.
 
 | Model | Licence | How it is used |
 |---|---|---|
-| Google MediaPipe Face Landmarker | Apache-2.0 | Downloaded on first use from Google's model storage. Not committed |
+| Google MediaPipe Face Landmarker | Apache-2.0 | `face_landmarker.task`, float16 v1, 3.6 MB. Downloaded on first use from Google's model storage into the gitignored `models/`, and checked against a SHA-256 pinned in `src/core/models.py`. Not committed |
 | Video Depth Anything — Small | Apache-2.0 | Hosted on Fal, or locally in a later phase |
 | Video Depth Anything — Base, Large | CC-BY-NC-4.0 | **Non-commercial only.** Offered only once that is ruled on for the use in hand |
 
@@ -45,4 +45,4 @@ copyright notice goes here with it.
 
 ## Python dependencies
 
-Listed in `requirements.txt` once Phase 1 pins them. Each keeps its own licence.
+Pinned exactly in `requirements.txt`. Each keeps its own licence.

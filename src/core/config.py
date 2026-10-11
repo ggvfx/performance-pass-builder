@@ -178,6 +178,18 @@ REFERENCE_RATE = 24
 # scattering files among the masters.
 OUTPUT_DIR_SUFFIX = "_performance"
 
+# --- MODEL CACHE ---
+
+# The MediaPipe bundle lands here on first use. Inside the repo but gitignored
+# (`models/` and `*.task`), rather than in a platform cache directory: one
+# obvious folder someone can delete or populate by hand, and `.gitignore`
+# already covers it. What the file must be is in models.py.
+MODEL_CACHE_DIR = REPO_ROOT / "models"
+
+# Generous. It is 3.6 MB, but a first run on a slow or throttled connection
+# should wait rather than fail and send someone hunting for a URL.
+MODEL_DOWNLOAD_TIMEOUT = 120.0
+
 # --- SOURCE FILES ---
 
 # What the path picker offers. Lowercase; compared against a lowercased suffix.

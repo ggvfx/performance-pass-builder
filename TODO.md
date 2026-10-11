@@ -198,8 +198,16 @@ runs. `tests/media/README.md` lists the clips still wanted: two faces
 crossing, a face leaving frame and returning, a profile turn, a moving camera,
 a small face in a wide shot. Those are what 3.4 onward actually need.
 
-- [ ] **3.1** MediaPipe model downloaded on first use, checked against a
+- [x] **3.1** MediaPipe model downloaded on first use, checked against a
       pinned SHA-256, cached outside the repo's tracked files
+      *`src/performance/model_file.py`. `face_landmarker.task`, float16 v1,
+      3,758,596 bytes, into the gitignored `models/`. The hash was taken from
+      the bundle actually exercised: it loads, finds the face in
+      `one_face_medium.mp4`, and returns 478 landmarks — `LANDMARK_COUNT`.
+      Verified on every call, not only after downloading, because that costs
+      4 ms. A file that fails its hash is deleted, never used. Proven for
+      real from a clean `models/`: downloaded, cached, then tampered with and
+      replaced. 20 tests, none touching the network.*
 - [ ] **3.2** One face, full frame, every frame — the baseline
 - [ ] **3.3** Seeding from a box on a chosen frame; forward and backward runs
 - [ ] **3.4** The search box following the face frame to frame
@@ -284,7 +292,9 @@ assumes these hold.
 
 - [ ] **4.11** One real shot, all the way through: prepare, depth, track,
       composite, output. Timed at each stage, because nobody yet knows what
-      Prepare costs on a long source
+      Prepare costs on a long source. **Includes the one test that really
+      downloads the model**, from an empty `models/` — the unit tests mock
+      the network, so nothing else proves the URL is still live
 - [ ] **4.12** The things only a person can see. The mesh lands on the frame
       the readout claims — against the proxy's burned-in numbers. The alpha
       edges are clean, with no dark fringing, which is the straight-versus-
