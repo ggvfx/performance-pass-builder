@@ -76,6 +76,7 @@ from src.performance.face_geometry import (
     centroid,
     face_in_box,
     face_nearest,
+    overlap,
     points_to_array,
     search_region,
     to_full_frame,
@@ -116,9 +117,33 @@ class _Fill:
     something to hand anybody. What comes out is the track.
     """
 
-    def __init__(self, source: SourceInfo, search_padding: float | None):
+    def __init__(
+        self,
+        source: SourceInfo,
+        search_padding: float | None,
+        continuity: float | None = None,
+        give_up_after: int | None = None,
+    ):
+        """
+        Notes:
+            The settings are read here, not in the signature. A default
+            argument is evaluated once when the module is imported, so
+            `config.FACE_CONTINUITY_OVERLAP` written there would freeze the
+            value at import and quietly ignore any later change — which is
+            exactly how a tuning session produces no effect and no error.
+        """
         self.source = source
         self.search_padding = search_padding
+        self.continuity = (
+            config.FACE_CONTINUITY_OVERLAP if continuity is None else continuity
+        )
+
+        rate = source.fps_numerator / source.fps_denominator
+        self.give_up_after = (
+            give_up_after
+            if give_up_after is not None
+            else round(config.FACE_GIVE_UP_SECONDS * rate)
+        )
 
         # NaN throughout, so any frame no segment reaches is a gap by
         # default. Zeros would make a missed frame look like a face
@@ -131,6 +156,28 @@ class _Fill:
 
         self.following: tuple[float, float] | None = None
         self.region: NormalisedBox | None = None
+
+        # Where the face actually was last, which is what a candidate has to
+        # overlap to count as the same face. Distinct from `region`, which is
+        # that box padded out into somewhere to look.
+        self.last_box: NormalisedBox | None = None
+        self.missing_run = 0
+        self.given_up = False
+
+    def start_segment(self, box: NormalisedBox) -> None:
+        """
+        Begins a new seed's run, forgetting everything about the last one.
+
+        Notes:
+            A seed is the artist saying "stop using what you had, use this".
+            Carrying a given-up state or a last known position across one
+            would let an earlier segment end the whole track.
+        """
+        self.aim_at(box)
+        self.following = None
+        self.last_box = None
+        self.missing_run = 0
+        self.given_up = False
 
     def aim_at(self, box: NormalisedBox) -> None:
         """Points the search region at a box, or at the whole frame."""
@@ -180,8 +227,33 @@ class _Fill:
 
         chosen = choose(candidates)
 
-        if chosen is not None:
-            self.aim_at(bounding_box(chosen))
+        # **The same face, or not this face** — but only against the frame
+        # immediately before. A candidate that does not overlap where the
+        # face was one frame ago is somebody else standing in the search
+        # region, which is how a track changes person without ever showing a
+        # gap to mark it.
+        #
+        # After an absence this is switched off, because position has
+        # stopped being evidence: measured on the desert clip, a face lost
+        # for 52 frames came back overlapping its old box by 0.06, having
+        # walked most of the way to camera in between. Any threshold strict
+        # enough to catch a transfer would reject her return.
+        #
+        # What guards the gap instead is the search region, which stays
+        # anchored where she was, and the give-up rule, which stops the wait
+        # becoming indefinite.
+        if chosen is not None and self.last_box is not None and self.missing_run == 0:
+            if overlap(bounding_box(chosen), self.last_box) < self.continuity:
+                chosen = None
+
+        if chosen is None:
+            self.missing_run += 1
+            if self.missing_run > self.give_up_after:
+                self.given_up = True
+        else:
+            self.missing_run = 0
+            self.last_box = bounding_box(chosen)
+            self.aim_at(self.last_box)
 
         return chosen
 
@@ -313,6 +385,7 @@ class FaceTracker:
         path: Path | None = None,
         seed_index: int = 0,
         search_padding: float | None = config.FACE_SEARCH_PADDING,
+        continuity: float | None = None,
         on_progress: "Callable[[int, int], None] | None" = None,
     ) -> FaceTrack:
         """
@@ -343,6 +416,7 @@ class FaceTracker:
             path=path,
             first_seed_index=seed_index,
             search_padding=search_padding,
+            continuity=continuity,
             on_progress=on_progress,
         )
 
@@ -353,6 +427,7 @@ class FaceTracker:
         path: Path | None = None,
         first_seed_index: int = 0,
         search_padding: float | None = config.FACE_SEARCH_PADDING,
+        continuity: float | None = None,
         on_progress: "Callable[[int, int], None] | None" = None,
     ) -> FaceTrack:
         """
@@ -406,7 +481,7 @@ class FaceTracker:
                     f"source has {source.frame_count} frames"
                 )
 
-        fill = _Fill(source, search_padding)
+        fill = _Fill(source, search_padding, continuity=continuity)
         rate = Fraction(source.fps_numerator, source.fps_denominator)
         done = 0
 
@@ -468,8 +543,7 @@ class FaceTracker:
             may_raise: Whether a seed box with nothing in it is fatal. True
                 for the first seed only — see `track_face`.
         """
-        fill.aim_at(seed.box)
-        fill.following = None
+        fill.start_segment(seed.box)
 
         wanted = last_frame - seed.frame + 1
 
@@ -501,6 +575,18 @@ class FaceTracker:
 
                     step()
 
+                    if fill.given_up:
+                        # Nothing has been found for long enough that waiting
+                        # in the same place has stopped being a recovery and
+                        # started being a way to collect the wrong face.
+                        logging.info(
+                            f"Gave up on {seed_index} at frame {frame_index}: "
+                            f"nothing found for {fill.missing_run} frames"
+                        )
+                        for _ in range(last_frame - frame_index):
+                            step()
+                        break
+
     def _backward(
         self,
         source: SourceInfo,
@@ -521,11 +607,11 @@ class FaceTracker:
             away; the forward run already owns it.
         """
         if fill.tracked[seed.frame]:
+            fill.start_segment(bounding_box(fill.landmarks[seed.frame]))
             fill.following = centroid(fill.landmarks[seed.frame])
-            fill.aim_at(bounding_box(fill.landmarks[seed.frame]))
+            fill.last_box = bounding_box(fill.landmarks[seed.frame])
         else:
-            fill.following = None
-            fill.aim_at(seed.box)
+            fill.start_segment(seed.box)
 
         with self._landmarker(config.SEED_FACE_LIMIT) as (mp, landmarker):
             backwards = frames_backwards(
@@ -545,6 +631,15 @@ class FaceTracker:
                     fill.record(frame_index, chosen, seed_index)
 
                 step()
+
+                if fill.given_up:
+                    logging.info(
+                        f"Gave up going backwards at frame {frame_index}: "
+                        f"nothing found for {fill.missing_run} frames"
+                    )
+                    for _ in range(frame_index):
+                        step()
+                    break
 
     # --- A WHOLE SELECTION ---
 

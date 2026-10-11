@@ -669,15 +669,6 @@ def test_flickering_detection_is_recorded_as_gaps_not_smoothed_over(
     track.validate_shape()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Known limitation. When the seeded face leaves the frame, the search "
-        "region stays where it was, and the other officer walks into it and "
-        "takes the track. Nothing currently asks whether a recovered face is "
-        "the same face. See DECISIONS.md."
-    ),
-)
 def test_a_track_does_not_transfer_to_another_face_after_its_own_leaves(
     tracker, crossing_source, crossing_mezzanine
 ):
@@ -685,10 +676,13 @@ def test_a_track_does_not_transfer_to_another_face_after_its_own_leaves(
     The right officer walks left across the frame and out. After that there
     is no right officer to track, so the honest answer is a gap to the end.
 
-    What happens instead is that the remaining officer is sitting inside the
-    search region, is the nearest face, and inherits the track. The mesh then
-    gets drawn on the wrong person with no indication anything went wrong —
-    which is worse than losing him, because it looks like success.
+    This failed until 3.10: the remaining officer sat inside the search
+    region, was the nearest face, and inherited the track with no gap to
+    mark it — the mesh drawn on the wrong person, looking like success.
+
+    What fixes it is requiring a face to overlap where it was **one frame
+    ago**. A transfer is a jump, and a jump scores near zero against a
+    measured floor of 0.88 for a face that is genuinely still itself.
     """
     track = tracker.track_from_seed(
         crossing_source,
@@ -698,11 +692,16 @@ def test_a_track_does_not_transfer_to_another_face_after_its_own_leaves(
     )
 
     where = middles(track, crossing_source.frame_count)
-    started = where[0]
-    ended = where[max(where)]
+    last = max(where)
 
-    print(f"started at x {started:.2f}, ended at x {ended:.2f}")
-    assert ended > 0.45, "the track ended on the other officer"
+    print(f"tracked to frame {last}, ending at x {where[last]:.2f}")
+
+    # He exits frame left, so the track should follow him to the edge and
+    # then stop. The officer who stays sits at x 0.29 to 0.40 throughout,
+    # which is the band a transferred track ends up in.
+    assert not track.tracked[-1], "still tracking someone after he left"
+    assert where[last] < 0.25, "the track ended on the other officer"
+    assert last < crossing_source.frame_count - 1
 
 
 # --- A WHOLE SELECTION ---

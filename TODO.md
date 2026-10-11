@@ -275,7 +275,7 @@ a small face in a wide shot. Those are what 3.4 onward actually need.
       an opaque video came out — a mesh layer written that way composites
       as a solid rectangle. The old alpha test could not catch it because
       it used fully opaque alpha, which reads back the same either way.*
-- [ ] **3.10** **A recovered face must be shown to be the same face.** Found
+- [x] **3.10** **A recovered face must be shown to be the same face.** Found
       by `two_faces_cross_and_exit.mp4`: when the seeded officer walks out of
       frame, the search region stays where it was, the other officer walks
       into it, and he inherits the track. The mesh then lands on the wrong
@@ -283,8 +283,18 @@ a small face in a wide shot. Those are what 3.4 onward actually need.
       because it looks like success. Options, cheapest first: require a
       recovered face to overlap the last known box; cap how long the region
       may wait before the track is declared ended; cap how far a face may
-      jump in one frame. There is an `xfail` test holding the failure in
-      place, so whatever is chosen has something to satisfy
+      jump in one frame.
+      *Done. A face must overlap where it was **one frame ago** — and only
+      one frame ago. The transfer on the night clip happened with no gap at
+      all, so recovery-only checking would have missed it entirely; and a
+      face lost for 52 frames on the desert clip returns overlapping its old
+      box by 0.06, so any threshold strict enough to catch a transfer throws
+      her return away. 0.4, against a measured floor of 0.88 for a face that
+      is still itself. The give-up rule is 5 seconds, a backstop rather than
+      the mechanism. All three clips measured before and after: the night
+      clip now follows him out of frame and stops instead of inheriting the
+      other officer, the desert clip is unchanged at 188/240, the studio
+      clip unchanged at 240/240.*
 - [x] **3.9** `landmarks.json` and the per-face tracking report, including
       where each face's seeds are and which frames came from which
       *`src/performance/landmarks.py`, with a reader so the round trip is

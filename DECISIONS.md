@@ -15,6 +15,36 @@ again.
 
 ## Reviewed with you, 2026-10-11
 
+- [ ] **3.10 is built, and measuring changed the design twice.** Worth your
+      eye because what we agreed is not quite what is in the code.
+
+      We agreed "require a recovered face to overlap the last known box".
+      But re-reading the evidence, **the night clip's transfer happened with
+      no gap at all** — the other officer was already inside the search
+      region while the track was still live — so a recovery-only check would
+      have missed the exact bug it was for. The check is on **every** frame,
+      against the frame immediately before.
+
+      Then the first attempt regressed the desert clip from 188 tracked
+      frames to 132. She is lost for 52 frames and comes back overlapping
+      her old box by **0.06**, having walked most of the way to camera in
+      between. So the check now applies *only* between consecutive frames
+      and switches off across an absence, where position has stopped being
+      evidence.
+
+      0.4, against a measured floor of 0.88 for a face that is genuinely
+      still itself. Give-up is 5 seconds rather than the 2 we discussed —
+      2 would have cut the desert clip's 52-frame gap in half and thrown
+      away the 56 good frames behind it.
+- [ ] **A latent bug found on the way: settings read in a signature freeze
+      at import.** `continuity: float = config.FACE_CONTINUITY_OVERLAP` as a
+      default argument is evaluated once when the module loads, so changing
+      the config afterwards does nothing — silently. It cost a wrong
+      measurement before I noticed. The settings are read inside the
+      function now, and `continuity` is a parameter so it can be swept
+      without editing config at all.
+
+
 - [x] **Faces stay separate passes, and only what changed is re-tracked.**
       Agreed, with the two requirements you added. `track_selection` takes
       `retrack` and `existing`: name the faces that changed, hand back the

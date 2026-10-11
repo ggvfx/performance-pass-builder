@@ -220,6 +220,66 @@ MIN_SEARCH_PIXELS = 192
 # nobody asked about.
 SEED_FACE_LIMIT = 5
 
+# --- STAYING ON THE SAME FACE ---
+
+# How much a face must overlap where it was last to be accepted as the same
+# face. Below this it is treated as not found.
+#
+# **This is what stops a track transferring to someone else.** The search
+# region narrows the field; it does not stop a second face inside it taking
+# over, which is exactly what happened on the night clip — one officer
+# walked out and the other, already inside the region, inherited his track
+# with no gap to mark it.
+#
+# Measured rather than guessed: across all three real clips, frame to frame,
+# a face overlaps its own previous position by 0.88 at worst and 0.98 at the
+# median — including a subject walking toward camera and a head turning away.
+# A different person elsewhere in the picture scores about zero. 0.4 sits far
+# below anything legitimate and far above any transfer.
+FACE_CONTINUITY_OVERLAP = 0.4
+
+# How long the tracker keeps looking in the same place before deciding the
+# face is gone for good. After this the segment ends and the rest is a gap
+# until another seed.
+#
+# **Generous on purpose.** The overlap check above is what actually prevents
+# transfers, so this is a backstop for the narrow case where someone else
+# occupies almost exactly the vacated spot. Two seconds was the first
+# instinct and it was wrong: the desert clip has a 52-frame stretch where
+# the face is genuinely absent and genuinely comes back, and giving up at 48
+# frames would throw away the 56 good frames behind it.
+FACE_GIVE_UP_SECONDS = 5.0
+
+# --- STAYING ON THE SAME FACE ---
+
+# How much a face must overlap where it was last to be accepted as the same
+# face. Below this it is treated as not found.
+#
+# **This is what stops a track transferring to someone else.** The search
+# region narrows the field; it does not stop a second face inside it taking
+# over, which is exactly what happened on the night clip — one officer
+# walked out and the other, already inside the region, inherited his track
+# with no gap to mark it.
+#
+# Measured rather than guessed: across all three real clips, frame to frame,
+# a face overlaps its own previous position by 0.88 at worst and 0.98 at the
+# median — including a subject walking toward camera and a head turning away.
+# A different person elsewhere in the picture scores about zero. 0.4 sits far
+# below anything legitimate and far above any transfer.
+FACE_CONTINUITY_OVERLAP = 0.4
+
+# How long the tracker keeps looking in the same place before deciding the
+# face is gone for good. After this the segment ends and the rest is a gap
+# until another seed.
+#
+# **Generous on purpose.** The overlap check above is what actually prevents
+# transfers, so this is a backstop for the narrow case where someone else
+# occupies almost exactly the vacated spot. Two seconds was the first
+# instinct and it was wrong: the desert clip has a 52-frame stretch where
+# the face is genuinely absent and genuinely comes back, and giving up at 48
+# frames would throw away the 56 good frames behind it.
+FACE_GIVE_UP_SECONDS = 5.0
+
 # One face for the baseline pass. The selection-driven passes set their own.
 BASELINE_FACE_LIMIT = 1
 
