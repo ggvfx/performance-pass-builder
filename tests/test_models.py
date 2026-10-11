@@ -751,8 +751,9 @@ def test_nothing_unimplemented_returns_none():
     The anti-pattern this guards: `pass` as a placeholder returns None, so an
     unimplemented function flows through the app pretending it worked.
 
-    What is left is the box arithmetic, which 3.3 and 3.4 fill in. The
-    FaceTrack methods were here too until 3.2 implemented them.
+    What is left is the box arithmetic, which 3.4 needs for the padded search
+    region. 3.3 chose faces by comparing boxes in fractions and never had to
+    reach pixels. The FaceTrack methods were here too until 3.2.
     """
     unimplemented = {
         "NormalisedBox.to_pixels": lambda: a_box().to_pixels(1920, 1080),

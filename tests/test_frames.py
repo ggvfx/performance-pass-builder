@@ -17,7 +17,13 @@ import numpy as np
 import pytest
 
 from src.core.ffmpeg_tools import MediaToolchain
-from src.media.frames import FrameReader, FrameWriter, frame_size_bytes
+from src.media.frames import (
+    FrameReader,
+    FrameWriter,
+    frame_size_bytes,
+    frames_backwards,
+    seek_seconds,
+)
 from src.media.probe import SourceProbe
 
 needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg is not installed")
@@ -104,6 +110,165 @@ def test_a_reader_can_read_the_mezzanine_instead_of_the_source(toolchain, probe,
 
     with FrameReader.for_source(toolchain, source, path=mezzanine) as reader:
         assert len(list(reader)) == source.frame_count
+
+
+# --- SEEKING ---
+
+
+@pytest.fixture(scope="module")
+def intra(toolchain, probe, clips, tmp_path_factory):
+    """
+    A mezzanine and its probed source, built once.
+
+    Seeking is only exact on an all-intra file, so every test below needs
+    one. `testsrc` draws a different picture every frame, which is what makes
+    "did the seek land on the right frame" answerable by hash.
+    """
+    from src.media.mezzanine import MezzanineBuilder
+
+    source = probe.probe(clips["film24"])
+    path = MezzanineBuilder(toolchain).build(
+        source, tmp_path_factory.mktemp("intra") / "m.mov"
+    )
+    return probe.probe(path), path
+
+
+def frame_hashes(toolchain, source, path, **extra):
+    """Short hashes of each frame a reader hands back."""
+    import hashlib
+
+    with FrameReader.for_source(toolchain, source, path=path, **extra) as reader:
+        return [hashlib.md5(frame.tobytes()).hexdigest()[:12] for frame in reader]
+
+
+@needs_ffmpeg
+def test_a_seek_lands_on_exactly_the_frame_asked_for(toolchain, intra):
+    """
+    The one that matters. A seek landing a frame early would put every
+    landmark after it on the wrong picture, and nothing downstream could
+    tell — the track would simply be subtly wrong.
+    """
+    source, path = intra
+    every = frame_hashes(toolchain, source, path)
+
+    for wanted in (0, 1, 17, 30, source.frame_count - 1):
+        got = frame_hashes(toolchain, source, path, start_frame=wanted, max_frames=1)
+
+        assert got == [every[wanted]], f"seeking to {wanted} landed somewhere else"
+
+
+@needs_ffmpeg
+def test_a_seek_reads_on_from_there(toolchain, intra):
+    source, path = intra
+    every = frame_hashes(toolchain, source, path)
+
+    assert frame_hashes(toolchain, source, path, start_frame=40) == every[40:]
+
+
+@needs_ffmpeg
+def test_a_frame_limit_stops_where_it_is_told(toolchain, intra):
+    source, path = intra
+    every = frame_hashes(toolchain, source, path)
+
+    assert frame_hashes(toolchain, source, path, start_frame=10, max_frames=5) == every[10:15]
+
+
+def test_seeking_without_a_rate_is_refused(toolchain, clips):
+    """
+    A frame number cannot become a time without one, and guessing a rate is
+    how a seek ends up on the wrong frame.
+    """
+    with pytest.raises(ValueError, match="exact rate"):
+        FrameReader(toolchain, clips["film24"], 320, 240, start_frame=10)
+
+
+def test_a_seek_time_comes_from_the_exact_rate():
+    """At 24000/1001 frame 24 is 1.001 seconds, not 1.0."""
+    assert seek_seconds(24, Fraction(24, 1)) == "1.000000"
+    assert seek_seconds(24, Fraction(24000, 1001)) == "1.001000"
+    assert seek_seconds(0, Fraction(24, 1)) == "0.000000"
+
+
+# --- BACKWARDS ---
+
+
+@needs_ffmpeg
+def test_backwards_hands_back_every_frame_in_reverse(toolchain, intra):
+    source, path = intra
+
+    seen = list(frames_backwards(toolchain, source, source.frame_count - 1, path=path))
+
+    assert [index for index, _ in seen] == list(range(source.frame_count - 1, -1, -1))
+
+
+@needs_ffmpeg
+def test_every_frame_read_backwards_is_the_right_picture(toolchain, intra):
+    """
+    Reverse order is not the same claim as right frames. This checks the
+    picture, by hash, against the forward read.
+    """
+    source, path = intra
+    import hashlib
+
+    every = frame_hashes(toolchain, source, path)
+
+    for index, frame in frames_backwards(toolchain, source, source.frame_count - 1, path=path):
+        got = hashlib.md5(frame.tobytes()).hexdigest()[:12]
+        assert got == every[index], f"frame {index} read backwards is a different picture"
+
+
+@needs_ffmpeg
+def test_backwards_is_still_correct_across_several_windows(toolchain, intra):
+    """
+    The window is a memory ceiling, not a correctness boundary. A budget of
+    five frames forces ten windows over this clip, and the seams between them
+    are where an off-by-one would live.
+    """
+    source, path = intra
+    budget = frame_size_bytes(source.width, source.height) * 5
+
+    seen = list(
+        frames_backwards(
+            toolchain, source, source.frame_count - 1, path=path, budget_bytes=budget
+        )
+    )
+
+    assert [index for index, _ in seen] == list(range(source.frame_count - 1, -1, -1))
+
+
+@needs_ffmpeg
+def test_backwards_can_stop_part_way_down(toolchain, intra):
+    """Tracking back from a seed stops at frame 0 of the segment, not the clip."""
+    source, path = intra
+
+    seen = list(frames_backwards(toolchain, source, 20, first_frame=10, path=path))
+
+    assert [index for index, _ in seen] == list(range(20, 9, -1))
+
+
+@needs_ffmpeg
+def test_one_frame_backwards_is_a_valid_run(toolchain, intra):
+    """A seed on frame 0 asks for exactly this, and it must not be an error."""
+    source, path = intra
+
+    seen = list(frames_backwards(toolchain, source, 0, first_frame=0, path=path))
+
+    assert [index for index, _ in seen] == [0]
+
+
+def test_an_empty_backward_range_is_refused(toolchain, probe, clips):
+    source = probe.probe(clips["film24"])
+
+    with pytest.raises(ValueError, match="is empty"):
+        list(frames_backwards(toolchain, source, 5, first_frame=10))
+
+
+def test_a_backward_range_outside_the_source_is_refused(toolchain, probe, clips):
+    """Asking past the end would read nothing and look like a short clip."""
+    source = probe.probe(clips["film24"])
+
+    with pytest.raises(ValueError, match="outside"):
+        list(frames_backwards(toolchain, source, source.frame_count))
 
 
 def test_a_reader_outside_a_context_manager_says_so(toolchain, clips):

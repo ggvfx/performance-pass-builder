@@ -34,6 +34,7 @@ from pathlib import Path
 
 import numpy as np
 
+from src.core import config
 from src.core.ffmpeg_tools import FFmpegReadPipe, FFmpegWritePipe, MediaToolchain
 from src.core.models import SourceInfo
 
@@ -87,6 +88,18 @@ def frame_size_bytes(width: int, height: int, pixel_format: PixelFormat = RGB) -
     return width * height * pixel_format.bytes_per_pixel
 
 
+def seek_seconds(frame: int, rate: Fraction) -> str:
+    """
+    A frame number as the seconds string ffmpeg's `-ss` wants.
+
+    Notes:
+        Derived from the exact rational rate and printed with enough decimals
+        that a long source cannot round onto its neighbour: at 24000/1001,
+        frame 100000 is 4170.8375 seconds and one frame is 0.0417 of one.
+    """
+    return f"{float(Fraction(frame) / rate):.6f}"
+
+
 # --- READING ---
 
 
@@ -102,9 +115,11 @@ class FrameReader:
                 ...
 
     Notes:
-        Sequential only. Reading frame 500 means reading the 500 before it,
-        which is why the mezzanine exists — a seek into long-GOP h264 is
-        either inexact or slower than this.
+        Forwards only, and sequential from wherever it starts. `start_frame`
+        seeks there first, which is instant **and only exact on an all-intra
+        file** — a seek into long-GOP h264 lands on the nearest keyframe
+        before the time asked for, and hands back the wrong picture without
+        saying so. That is what the mezzanine is for.
     """
 
     def __init__(
@@ -114,12 +129,42 @@ class FrameReader:
         width: int,
         height: int,
         pixel_format: PixelFormat = RGB,
+        start_frame: int = 0,
+        max_frames: int | None = None,
+        rate: Fraction | None = None,
     ):
+        """
+        Args:
+            start_frame: Begin here instead of at frame 0. **Only exact on an
+                all-intra file** — see the note below. Needs `rate`.
+            max_frames: Stop after this many frames.
+            rate: The source's exact frame rate, needed to turn `start_frame`
+                into a seek.
+
+        Raises:
+            ValueError: `start_frame` was given without a rate.
+
+        Notes:
+            **Seeking is only exact on an all-intra file.** `-ss` before `-i`
+            is instant but lands on the nearest keyframe at or before the
+            time asked for. Every frame of the mezzanine is a keyframe, so
+            there it is exact; on long-GOP h264 it will quietly hand back a
+            different frame, and nothing downstream could tell.
+
+            That is what the mezzanine is for, and why a caller that seeks
+            must pass the prepared copy rather than the original.
+        """
+        if start_frame and rate is None:
+            raise ValueError("seeking to a frame needs the source's exact rate")
+
         self.toolchain = toolchain
         self.path = path
         self.width = width
         self.height = height
         self.pixel_format = pixel_format
+        self.start_frame = start_frame
+        self.max_frames = max_frames
+        self.rate = rate
 
         self.frames_read = 0
         self._pipe: FFmpegReadPipe | None = None
@@ -131,6 +176,7 @@ class FrameReader:
         source: SourceInfo,
         path: Path | None = None,
         pixel_format: PixelFormat = RGB,
+        **extra,
     ):
         """
         A reader sized from a probed source.
@@ -140,22 +186,37 @@ class FrameReader:
             source: Where the geometry comes from.
             path: What to read, when it is not the source itself — the
                 mezzanine usually, which has the same geometry.
+            **extra: `start_frame` and `max_frames`, passed through. The rate
+                comes from the source, so a caller never has to supply it.
         """
         return cls(
-            toolchain, path or Path(source.path), source.width, source.height, pixel_format
+            toolchain,
+            path or Path(source.path),
+            source.width,
+            source.height,
+            pixel_format,
+            rate=Fraction(source.fps_numerator, source.fps_denominator),
+            **extra,
         )
 
     # --- LIFECYCLE ---
 
     def __enter__(self) -> "FrameReader":
-        self._pipe = self.toolchain.open_read_pipe([
-            "-v", "error",
-            "-i", str(self.path),
-            "-map", "0:v:0",
-            "-f", "rawvideo",
-            "-pix_fmt", self.pixel_format.name,
-            "-",
-        ])
+        arguments = ["-v", "error"]
+
+        if self.start_frame:
+            # Before -i, which is the instant form. Exact only because the
+            # caller was told to hand over an all-intra file.
+            arguments += ["-ss", seek_seconds(self.start_frame, self.rate)]
+
+        arguments += ["-i", str(self.path), "-map", "0:v:0"]
+
+        if self.max_frames is not None:
+            arguments += ["-frames:v", str(self.max_frames)]
+
+        arguments += ["-f", "rawvideo", "-pix_fmt", self.pixel_format.name, "-"]
+
+        self._pipe = self.toolchain.open_read_pipe(arguments)
         return self
 
     def __exit__(self, *_) -> None:
@@ -216,6 +277,83 @@ class FrameReader:
         return np.frombuffer(raw, dtype=self.pixel_format.sample).reshape(
             self.height, self.width, self.pixel_format.channels
         )
+
+
+def frames_backwards(
+    toolchain: MediaToolchain,
+    source: SourceInfo,
+    last_frame: int,
+    first_frame: int = 0,
+    path: Path | None = None,
+    budget_bytes: int | None = None,
+):
+    """
+    Yields (frame index, frame) from `last_frame` down to `first_frame`.
+
+    Args:
+        source: Geometry and the exact rate.
+        last_frame: The highest frame to yield, inclusive.
+        first_frame: The lowest, inclusive.
+        path: **The mezzanine.** This seeks, and a seek is only exact on an
+            all-intra file — see `FrameReader`. Defaults to the source, which
+            is right only when the source is itself all-intra.
+        budget_bytes: Override the window size. Defaults to
+            `config.BACKWARD_WINDOW_BYTES`.
+
+    Raises:
+        ValueError: The range is empty or outside the source.
+        RuntimeError: A window came back short, which means the file is not
+            all-intra and the seek landed somewhere else.
+
+    Notes:
+        **A decoder only goes forwards**, so going backwards means holding
+        frames. Holding all of them would be 1.4 GB for ten seconds of 1080p,
+        so they are bought in windows: decode a window forwards, hand it back
+        in reverse, then step to the window before it.
+
+        Memory is bounded by the window rather than by the length of the run
+        — the same ceiling on a two-minute source as on a two-second one.
+
+        The cost is one seek per window, which is why this needs the
+        mezzanine. On long-GOP video a seek would land on the wrong frame and
+        every landmark after it would be attributed to the wrong picture.
+    """
+    if last_frame < first_frame:
+        raise ValueError(f"backward range {first_frame}..{last_frame} is empty")
+
+    if last_frame >= source.frame_count or first_frame < 0:
+        raise ValueError(
+            f"backward range {first_frame}..{last_frame} is outside the "
+            f"source's {source.frame_count} frames"
+        )
+
+    budget = budget_bytes if budget_bytes is not None else config.BACKWARD_WINDOW_BYTES
+    window = max(1, budget // frame_size_bytes(source.width, source.height))
+
+    logging.debug(f"Reading {first_frame}..{last_frame} backwards, {window} frames at a time")
+
+    window_end = last_frame
+
+    while window_end >= first_frame:
+        window_start = max(first_frame, window_end - window + 1)
+        wanted = window_end - window_start + 1
+
+        with FrameReader.for_source(
+            toolchain, source, path=path, start_frame=window_start, max_frames=wanted
+        ) as reader:
+            held = list(reader)
+
+        if len(held) != wanted:
+            raise RuntimeError(
+                f"asked for frames {window_start}..{window_end} and got {len(held)}, "
+                f"not {wanted}. A short window means {(path or Path(source.path)).name} "
+                f"is not all-intra, and every frame index here would be wrong."
+            )
+
+        for offset, frame in enumerate(reversed(held)):
+            yield window_end - offset, frame
+
+        window_end = window_start - 1
 
 
 # --- WRITING ---

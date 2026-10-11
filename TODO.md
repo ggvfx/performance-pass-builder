@@ -215,7 +215,14 @@ a small face in a wide shot. Those are what 3.4 onward actually need.
       track of NaN, never a short one. `FaceTrack.validate_shape`, `gaps`,
       `segments` and `landmarks_on` implemented with it — they were
       pseudocode, and the tracker is what fills the arrays they describe.*
-- [ ] **3.3** Seeding from a box on a chosen frame; forward and backward runs
+- [x] **3.3** Seeding from a box on a chosen frame; forward and backward runs
+      *`FaceTracker.track_from_seed`. 240/240 from a seed on frame 120, both
+      directions. Backwards needed `FrameReader` to seek and a new
+      `frames_backwards`, which buys frames in memory-bounded windows — a
+      decoder only runs forwards. Seeking proven exact against the mezzanine
+      by frame hash; the backward half agrees with a plain forward run to
+      2.39px against the forward half's 2.25px, which is the number that
+      says the reversed frames are aligned.*
 - [ ] **3.4** The search box following the face frame to frame
 - [ ] **3.5** Several faces, one tracker each
 - [ ] **3.6** Several seeds per face — segments between them, backward from the

@@ -13,6 +13,35 @@ again.
 
 ---
 
+## Phase 3 — 3.3
+
+- [ ] **`FrameReader` can now seek, and a seek is only exact on an all-intra
+      file.** `-ss` before `-i` is instant but lands on the nearest keyframe
+      at or before the time asked for — exact on the mezzanine, quietly wrong
+      on long-GOP h264. It is documented loudly in three places and proven by
+      frame hash in a test, but **it is a sharp edge**: a caller that passes
+      the original source instead of the mezzanine gets landmarks on the
+      wrong frames and nothing downstream can tell. If you would rather it
+      refused outright than documented, say so.
+- [ ] **Backwards reading buys frames in 256 MB windows.** A decoder only
+      runs forwards, so going backwards means holding frames; holding all of
+      them is 1.4 GB for ten seconds of 1080p. Windows cap it at about thirty
+      1080p frames or seven at 4K, the same ceiling on a two-minute source as
+      a two-second one. The cost is one seek per window.
+- [ ] **The backward run starts *on* the seed frame, not below it**, so it
+      begins from the same known-good detection the forward run did rather
+      than guessing at frame `seed - 1`. That frame's result is thrown away.
+- [ ] **Which face is chosen: best box overlap on the seed frame, then
+      nearest centroid.** Overlap is over the union, so a generous box still
+      matches a face but a box round a whole group does not claim one member.
+      **Nearest-centroid has no distance limit**, which is 3.3's honest
+      limit — two faces that touch can still swap. The padded search region
+      that fixes it is 3.4.
+- [ ] **A box with no face in it raises `NoFaceInSeed`.** The one tracking
+      failure that is the user's to fix rather than the app's, so it is its
+      own type with a message about drawing the box again. Everywhere else, a
+      frame with no face is recorded as a gap and never raises.
+
 ## Phase 3 — 3.1 and 3.2
 
 - [ ] **MediaPipe is imported inside the function, not at module scope.**

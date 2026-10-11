@@ -14,22 +14,33 @@ model, and skip without either, so a fresh clone still runs its suite.
 """
 
 from fractions import Fraction
+from pathlib import Path
 
 import numpy as np
 import pytest
 
 from src.core import config
 from src.core.ffmpeg_tools import MediaToolchain
-from src.core.models import LANDMARK_COUNT, NOT_SEEDED, FaceTrack
+from src.core.models import LANDMARK_COUNT, NOT_SEEDED, FaceTrack, NormalisedBox, Seed
 from src.media.probe import SourceProbe
 from src.performance import model_file
 from src.performance.tracking import (
     BASELINE_SEED,
     FaceTracker,
+    NoFaceInSeed,
+    bounding_box,
+    centroid,
+    face_in_box,
+    face_nearest,
+    overlap,
     points_to_array,
     report_for,
     timestamp_ms,
 )
+
+
+# Round the face on this clip, drawn generously the way a person would.
+SEED_BOX = NormalisedBox(left=0.40, top=0.18, right=0.66, bottom=0.68)
 
 
 @pytest.fixture(scope="session")
@@ -61,6 +72,21 @@ def tracker(toolchain, ffmpeg_available) -> FaceTracker:
 @pytest.fixture(scope="session")
 def one_face_source(toolchain, one_face):
     return SourceProbe(toolchain).probe(one_face)
+
+
+@pytest.fixture(scope="session")
+def one_face_mezzanine(toolchain, one_face_source, tmp_path_factory) -> Path:
+    """
+    An all-intra copy, because the backward run seeks.
+
+    Built once. It is the same encode every pass would do, and doing it per
+    test would dominate the file.
+    """
+    from src.media.mezzanine import MezzanineBuilder
+
+    return MezzanineBuilder(toolchain).build(
+        one_face_source, tmp_path_factory.mktemp("mezzanine") / "one_face.mov"
+    )
 
 
 @pytest.fixture(scope="session")
@@ -261,6 +287,193 @@ def test_every_tracked_frame_is_attributed_to_the_baseline_seed(one_face_source,
     assert len(track.segments()) == 1, "one unbroken run, so one segment"
     assert seed_index == BASELINE_SEED
     assert (covered.start_frame, covered.end_frame) == (0, one_face_source.frame_count - 1)
+
+
+# --- CHOOSING A FACE ---
+
+
+def points_at(x_from, x_to, y_from, y_to) -> np.ndarray:
+    """A stand-in face filling the given normalised rectangle."""
+    points = np.zeros((LANDMARK_COUNT, 3), dtype=np.float32)
+    points[:, 0] = np.linspace(x_from, x_to, LANDMARK_COUNT)
+    points[:, 1] = np.linspace(y_from, y_to, LANDMARK_COUNT)
+    return points
+
+
+def a_face(x_from, x_to, y_from, y_to):
+    """Stands in for one of MediaPipe's landmark lists."""
+    return [
+        type("Point", (), {"x": float(x), "y": float(y), "z": float(z)})()
+        for x, y, z in points_at(x_from, x_to, y_from, y_to)
+    ]
+
+
+def test_a_box_is_the_bounds_of_the_points():
+    box = bounding_box(points_at(0.2, 0.4, 0.3, 0.7))
+
+    assert (box.left, box.right) == pytest.approx((0.2, 0.4))
+    assert (box.top, box.bottom) == pytest.approx((0.3, 0.7))
+
+
+def test_boxes_that_do_not_meet_do_not_overlap():
+    left = NormalisedBox(left=0.0, top=0.0, right=0.2, bottom=0.2)
+    right = NormalisedBox(left=0.8, top=0.8, right=1.0, bottom=1.0)
+
+    assert overlap(left, right) == 0.0
+
+
+def test_a_box_overlaps_itself_completely():
+    box = NormalisedBox(left=0.2, top=0.2, right=0.6, bottom=0.6)
+
+    assert overlap(box, box) == pytest.approx(1.0)
+
+
+def test_overlap_is_measured_over_the_union():
+    """
+    A generous box round a face and the face's own tight bounds still match,
+    but a box round a whole group does not match one member better than the
+    member it was aimed at.
+    """
+    half = NormalisedBox(left=0.0, top=0.0, right=0.5, bottom=1.0)
+    whole = NormalisedBox(left=0.0, top=0.0, right=1.0, bottom=1.0)
+
+    assert overlap(half, whole) == pytest.approx(0.5)
+
+
+def test_the_face_inside_the_box_is_the_one_chosen():
+    faces = [a_face(0.05, 0.25, 0.1, 0.5), a_face(0.70, 0.90, 0.1, 0.5)]
+    box = NormalisedBox(left=0.68, top=0.08, right=0.92, bottom=0.52)
+
+    chosen = face_in_box(faces, box)
+
+    assert float(chosen[:, 0].mean()) > 0.5, "picked the face on the wrong side"
+
+
+def test_a_box_over_nothing_chooses_no_face():
+    """
+    A box drawn on empty background says so, rather than quietly returning
+    whoever happened to be nearest.
+    """
+    faces = [a_face(0.05, 0.25, 0.1, 0.5)]
+    empty = NormalisedBox(left=0.8, top=0.8, right=0.95, bottom=0.95)
+
+    assert face_in_box(faces, empty) is None
+
+
+def test_no_faces_at_all_chooses_none():
+    assert face_in_box([], NormalisedBox(left=0.1, top=0.1, right=0.2, bottom=0.2)) is None
+    assert face_nearest([], (0.5, 0.5)) is None
+
+
+def test_the_nearest_face_is_the_one_followed():
+    faces = [a_face(0.05, 0.25, 0.1, 0.5), a_face(0.70, 0.90, 0.1, 0.5)]
+
+    chosen = face_nearest(faces, (0.8, 0.3))
+
+    assert float(chosen[:, 0].mean()) > 0.5
+
+
+def test_with_nowhere_to_follow_the_first_face_is_taken():
+    """The first frame of a run has no previous position to go on."""
+    assert face_nearest([a_face(0.05, 0.25, 0.1, 0.5)], None) is not None
+
+
+def test_a_centroid_is_the_middle_of_the_points():
+    assert centroid(points_at(0.2, 0.4, 0.4, 0.8)) == pytest.approx((0.3, 0.6))
+
+
+# --- SEEDED RUNS ---
+
+
+def test_a_seeded_track_covers_the_whole_source(tracker, one_face_source, one_face_mezzanine):
+    """
+    Forward from the seed to the end, backward from it to frame 0. A seed in
+    the middle does not make a half-length track.
+    """
+    track = tracker.track_from_seed(
+        one_face_source, Seed(frame=120, box=SEED_BOX), label="Scientist",
+        path=one_face_mezzanine,
+    )
+
+    print(f"tracked {int(track.tracked.sum())}/{one_face_source.frame_count}")
+    assert track.frame_count == one_face_source.frame_count
+    assert track.tracked.all(), f"missed {track.gaps()}"
+
+
+def test_the_backward_half_is_as_good_as_the_forward_half(
+    tracker, one_face_source, one_face_mezzanine, one_face_track
+):
+    """
+    The real question about reading a video backwards. If the reversed frames
+    were misaligned, the half tracked backwards would disagree with a plain
+    forward run far more than the half tracked forwards does.
+    """
+    seeded = tracker.track_from_seed(
+        one_face_source, Seed(frame=120, box=SEED_BOX), path=one_face_mezzanine
+    )
+
+    difference = np.abs(seeded.landmarks - one_face_track.landmarks)
+    backward = float(difference[:120].mean()) * one_face_source.width
+    forward = float(difference[120:].mean()) * one_face_source.width
+
+    print(f"backward {backward:.2f}px vs forward {forward:.2f}px from the baseline")
+    assert backward < forward * 3, "the backward half disagrees far more than the forward half"
+    assert backward < 10, "the backward half is nowhere near the baseline track"
+
+
+def test_a_seeded_track_records_which_seed_found_each_frame(
+    tracker, one_face_source, one_face_mezzanine
+):
+    """What lets the timeline show where a stretch of track came from."""
+    track = tracker.track_from_seed(
+        one_face_source, Seed(frame=60, box=SEED_BOX), path=one_face_mezzanine, seed_index=2
+    )
+
+    assert (track.seeded_by[track.tracked] == 2).all()
+
+
+def test_a_seed_on_frame_zero_needs_no_backward_run(tracker, one_face_source, one_face_mezzanine):
+    """The edge case where the backward range would be empty."""
+    track = tracker.track_from_seed(
+        one_face_source, Seed(frame=0, box=SEED_BOX), path=one_face_mezzanine
+    )
+
+    assert track.frame_count == one_face_source.frame_count
+    assert track.tracked[0]
+
+
+def test_a_box_with_no_face_in_it_says_so(tracker, one_face_source, one_face_mezzanine):
+    """
+    The user's failure to fix rather than the app's, so it has its own
+    exception and a message about drawing the box again.
+    """
+    corner = Seed(frame=120, box=NormalisedBox(left=0.01, top=0.80, right=0.15, bottom=0.98))
+
+    with pytest.raises(NoFaceInSeed, match="drawing the box again"):
+        tracker.track_from_seed(one_face_source, corner, path=one_face_mezzanine)
+
+
+def test_a_seed_outside_the_source_is_refused(tracker, one_face_source, one_face_mezzanine):
+    beyond = Seed(frame=one_face_source.frame_count, box=SEED_BOX)
+
+    with pytest.raises(ValueError, match="frames"):
+        tracker.track_from_seed(one_face_source, beyond, path=one_face_mezzanine)
+
+
+def test_a_seeded_run_reports_progress_over_the_whole_source(
+    tracker, one_face_source, one_face_mezzanine
+):
+    """Both halves count toward the total, or the bar stops at the seed."""
+    seen = []
+
+    tracker.track_from_seed(
+        one_face_source,
+        Seed(frame=120, box=SEED_BOX),
+        path=one_face_mezzanine,
+        on_progress=lambda done, _total: seen.append(done),
+    )
+
+    assert seen[-1] == one_face_source.frame_count
 
 
 # --- NO FACE ---

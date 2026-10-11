@@ -191,6 +191,21 @@ FACE_DETECTION_CONFIDENCE = 0.5   # Minimum score to call something a face
 FACE_PRESENCE_CONFIDENCE = 0.5    # Minimum score that the face is still there
 FACE_TRACKING_CONFIDENCE = 0.5    # Minimum score to carry a track to the next frame
 
+# Reading a video backwards means holding frames, because a decoder only goes
+# forwards. This caps how many at once: frames are bought in windows of
+# roughly this many bytes, so the ceiling is the same on a 4K source as on a
+# 1080p one — about thirty 1080p frames, or seven at 4K.
+#
+# 256 MB rather than more: this app is used beside Resolve and Nuke, and
+# being a memory hog for a two-second speedup is a poor trade.
+BACKWARD_WINDOW_BYTES = 256 * 1024 * 1024
+
+# How many faces the landmarker is asked for on a seeded run. The seed box
+# picks one of them, so this is "how many candidates to choose between", not
+# how many are tracked. Five covers a group shot without paying for faces
+# nobody asked about.
+SEED_FACE_LIMIT = 5
+
 # One face for the baseline pass. The selection-driven passes set their own.
 BASELINE_FACE_LIMIT = 1
 
