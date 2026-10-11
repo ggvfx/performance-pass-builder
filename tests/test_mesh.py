@@ -16,6 +16,8 @@ import pytest
 from src.core import config
 from src.core.models import LANDMARK_COUNT, NOT_SEEDED, FaceTrack
 from src.performance.mesh import (
+    colour_for,
+    colours_for,
     draw_face,
     empty_layer,
     line_width,
@@ -204,6 +206,102 @@ def test_hiding_everything_gives_an_empty_layer():
     tracks = [a_track("A"), a_track("B")]
 
     assert lit(render_frame(tracks, 0, WIDTH, HEIGHT, visible=set())) == 0
+
+
+# --- WHICH FACE IS WHICH ---
+
+
+def surface_colours(layer) -> set:
+    """Every colour painted, minus the fixed feature colours."""
+    painted = layer[:, :, :3][layer[:, :, 3] == 255]
+    fixed = {
+        config.MESH_EYES_COLOUR,
+        config.MESH_LIPS_COLOUR,
+        config.MESH_IRIS_COLOUR,
+    }
+    return {tuple(colour) for colour in painted.tolist()} - fixed
+
+
+def test_two_faces_get_different_tessellation_colours():
+    """
+    The whole point. A prompt has to be able to name a person, and "the
+    mesh on the left" stops being true the moment they cross.
+    """
+    tracks = [a_track("Anna", centre_x=0.25), a_track("Ben", centre_x=0.75)]
+
+    layer = render_frame(tracks, 0, WIDTH, HEIGHT)
+
+    left = surface_colours(layer[:, : WIDTH // 2])
+    right = surface_colours(layer[:, WIDTH // 2 :])
+
+    # Anti-aliasing blends a lot of near-colours, so compare the hues the
+    # palette actually assigned rather than every value on the canvas.
+    assert colour_for(0) in left
+    assert colour_for(1) in right
+    assert colour_for(1) not in left, "Ben's hue was drawn on Anna"
+
+
+def test_the_first_face_keeps_the_colour_it_always_had():
+    """
+    A single-face job is the common case, and it should render exactly as
+    it did before any of this existed.
+    """
+    assert colour_for(0) == config.MESH_TESSELATION_COLOUR
+
+
+def test_the_palette_avoids_the_feature_colours():
+    """
+    Green is the eyes and orange is the lips. A face whose surface matched
+    another face's features would be exactly the collision this scheme
+    exists to prevent.
+    """
+    for hue in config.MESH_IDENTITY_PALETTE:
+        assert hue != config.MESH_EYES_COLOUR
+        assert hue != config.MESH_LIPS_COLOUR
+        assert hue != config.MESH_IRIS_COLOUR
+
+
+def test_the_palette_wraps_rather_than_running_out():
+    """Six faces is past where colour is the useful mechanism anyway."""
+    size = len(config.MESH_IDENTITY_PALETTE)
+
+    assert colour_for(size) == colour_for(0)
+    assert colour_for(size + 2) == colour_for(2)
+
+
+def test_colours_are_assigned_in_the_order_faces_were_chosen():
+    assert colours_for(["Anna", "Ben"]) == {
+        "Anna": colour_for(0),
+        "Ben": colour_for(1),
+    }
+
+
+def test_a_face_keeps_its_colour_when_it_is_the_only_one_visible():
+    """
+    The leave-and-rejoin case. Ben's hue is Ben's whether or not Anna is on
+    this frame — otherwise a prompt naming his colour would break every
+    time he was alone in shot.
+    """
+    tracks = [a_track("Anna", centre_x=0.25), a_track("Ben", centre_x=0.75)]
+
+    together = render_frame(tracks, 0, WIDTH, HEIGHT)
+    alone = render_frame(tracks, 0, WIDTH, HEIGHT, visible={"Ben"})
+
+    assert surface_colours(alone) == surface_colours(together[:, WIDTH // 2 :])
+
+
+def test_a_caller_can_pin_the_colours():
+    """
+    Assignment is by position, so deleting a face would shift the rest. A
+    caller that has already rendered or written a prompt keeps the mapping
+    and passes it back.
+    """
+    tracks = [a_track("Anna", centre_x=0.25), a_track("Ben", centre_x=0.75)]
+    pinned = {"Anna": colour_for(3), "Ben": colour_for(0)}
+
+    layer = render_frame(tracks, 0, WIDTH, HEIGHT, colours=pinned)
+
+    assert colour_for(3) in surface_colours(layer[:, : WIDTH // 2])
 
 
 # --- THE WHOLE LAYER ---

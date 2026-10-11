@@ -15,6 +15,30 @@ again.
 
 ## Reviewed with you, 2026-10-11
 
+- [x] **Faces are told apart by a hue on the tessellation.** Agreed: hue on
+      the surface only, lips and eyes unchanged on everyone, auto-assigned
+      from a palette in the order faces were chosen. Green and orange are
+      kept out of the palette because they are the eye and lip colours.
+      Face 1 keeps the existing blue, so single-face jobs are unchanged.
+      Looked at on the two-officer clip: blue and red read clearly apart at
+      a glance, with the feature colours still legible on both.
+
+      **The UI requirement this creates**, written into ARCHITECTURE: adding
+      a seed to an existing face must be more obvious than adding a new
+      face. A returning person given a new face gets a new colour, and every
+      prompt naming the old one breaks. That is the only way this scheme
+      fails.
+
+      Still untested: whether a generation model reads colour as identity
+      at all. It is the only property a text prompt can name, so it is worth
+      having regardless — but the checkpoint should try it on two people
+      before you rely on it.
+- [x] **Genjutsu is a reference in THIRD-PARTY and nothing more.** Confirmed
+      by you. The unverified-attribution note can go when someone gets round
+      to it; the point was never the credit, it was that I had written
+      "known to read as guidance to Seedance" as fact without evidence.
+
+
 - [x] **A track can transfer to the wrong face (3.10).** Agreed: require a
       recovered face to overlap where it was last, with a give-up rule after
       N missing frames as a backstop, N being a setting. Not yet built.

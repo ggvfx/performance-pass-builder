@@ -311,6 +311,24 @@ the 3.8 checkpoint is for.
 should not fill the stack with near-identical rows, and per-face visibility
 belongs on the Faces step where the faces are.
 
+**Which face is which is a hue on the tessellation.** A prompt has to be
+able to name a person, and "the mesh on the left" stops being true the
+moment two people cross or one walks out of shot — so colour is the only
+property that survives. Lips stay orange and eyes stay green on everyone:
+hue says *who*, the feature colours say *what*, and green and orange are
+kept out of the identity palette so the two can never be confused. The
+first face keeps the existing blue, so a single-face job renders exactly as
+it always did.
+
+The hue belongs to the **face**, not the track — which is what makes it the
+same colour when someone leaves and is re-seeded on their way back in. That
+puts one requirement on the Faces step: **"add a seed to Anna" has to be a
+more obvious action than "add a face"**, because a returning person given a
+new face gets a new colour, and every prompt naming the old one breaks.
+
+Whether a generation model reads colour as identity at all is untested, and
+is one of the things the 3.8 checkpoint is for.
+
 OpenCV draws. It never opens or writes a video file.
 
 **Known risk:** two faces crossing. A tracker following its own previous

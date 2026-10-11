@@ -14,6 +14,14 @@ should not fill the stack with three near-identical rows, and which faces
 are visible belongs on the Faces step beside the faces, not in the
 compositor.
 
+**Which face is which is a hue on the tessellation.** A prompt has to be
+able to name a person, and "the mesh on the left" stops being true the
+moment two people cross or one walks out — so colour is the only property
+that survives. Lips stay orange and eyes stay green on everyone, so hue
+says *who* and the feature colours say *what*. The hue belongs to the face,
+not the track, which is what makes it the same colour when someone leaves
+and is re-seeded on their way back in.
+
 Notes:
     **Straight alpha, which anti-aliasing does not give for free.** OpenCV
     blends an anti-aliased edge toward the existing pixel across all four
@@ -52,22 +60,69 @@ FEATURE_SETS = (
 )
 
 
-def connections() -> list[tuple[str, tuple, tuple[int, int, int], float]]:
+def colour_for(index: int) -> tuple[int, int, int]:
+    """
+    The tessellation hue for the nth face.
+
+    Notes:
+        Wraps round the palette rather than running out. Six faces in one
+        shot would reuse the first hue, which is worse than a crash only if
+        nobody notices — and at six faces in frame, telling them apart by
+        colour has already stopped being the useful mechanism.
+    """
+    return config.MESH_IDENTITY_PALETTE[index % len(config.MESH_IDENTITY_PALETTE)]
+
+
+def colours_for(labels: list[str]) -> dict[str, tuple[int, int, int]]:
+    """
+    A hue per face, assigned in order.
+
+    Args:
+        labels: Face labels, in the order they were chosen.
+
+    Returns:
+        label -> (R, G, B) for the tessellation.
+
+    Notes:
+        **Assigned by position, which is why the caller should keep it.**
+        Delete the first of two faces and the second inherits its hue — fine
+        while nothing has been rendered, wrong once a prompt says "the red
+        mesh is Ben". Resolve this once when a selection is made and carry
+        the result, rather than recomputing it per render.
+    """
+    return {label: colour_for(index) for index, label in enumerate(labels)}
+
+
+def connections(
+    surface_colour: tuple[int, int, int] | None = None,
+) -> list[tuple[str, tuple, tuple[int, int, int], float]]:
     """
     Which edges to draw, in what colour, at what width.
+
+    Args:
+        surface_colour: The tessellation hue, which is what says *which
+            face* this is. Defaults to the first of the palette.
 
     Returns:
         (name, edges, colour, width as a fraction of picture height) per set,
         in drawing order.
 
     Notes:
+        Only the tessellation takes a colour. Lips stay orange and eyes stay
+        green on every face, so hue says who and the feature colours say
+        what — and green and orange are kept out of the identity palette so
+        the two can never be confused.
+
         Imported here rather than at module scope for the same reason the
         tracker does it: there is no MediaPipe wheel for Intel macOS, and
         the dependency panel should get the chance to say so.
     """
     from mediapipe.tasks.python.vision import FaceLandmarksConnections as sets
 
-    surface = (config.MESH_TESSELATION_COLOUR, config.MESH_TESSELATION_WIDTH)
+    surface = (
+        surface_colour if surface_colour is not None else config.MESH_TESSELATION_COLOUR,
+        config.MESH_TESSELATION_WIDTH,
+    )
     eyes = (config.MESH_EYES_COLOUR, config.MESH_FEATURE_WIDTH)
     lips = (config.MESH_LIPS_COLOUR, config.MESH_FEATURE_WIDTH)
     iris = (config.MESH_IRIS_COLOUR, config.MESH_FEATURE_WIDTH)
@@ -117,13 +172,19 @@ def empty_layer(width: int, height: int) -> np.ndarray:
     return np.zeros((height, width, RGBA.channels), dtype=np.uint8)
 
 
-def draw_face(canvas: np.ndarray, points: np.ndarray) -> None:
+def draw_face(
+    canvas: np.ndarray,
+    points: np.ndarray,
+    surface_colour: tuple[int, int, int] | None = None,
+) -> None:
     """
     Draws one face's mesh onto an RGBA canvas, in place.
 
     Args:
         canvas: (height, width, 4) uint8, modified.
         points: (LANDMARK_COUNT, 3) as fractions of the picture.
+        surface_colour: The tessellation hue for this face. Defaults to the
+            first of the palette.
 
     Raises:
         ValueError: The points are the wrong shape.
@@ -144,7 +205,7 @@ def draw_face(canvas: np.ndarray, points: np.ndarray) -> None:
     pixels[:, 0] = np.clip(points[:, 0] * width, 0, width - 1)
     pixels[:, 1] = np.clip(points[:, 1] * height, 0, height - 1)
 
-    for _name, edges, colour, fraction in connections():
+    for _name, edges, colour, fraction in connections(surface_colour):
         thickness = line_width(fraction, height)
         stroke = (*colour, 255)
 
@@ -165,6 +226,7 @@ def render_frame(
     width: int,
     height: int,
     visible: set[str] | None = None,
+    colours: dict[str, tuple[int, int, int]] | None = None,
 ) -> np.ndarray:
     """
     Every visible face's mesh for one frame, as a transparent RGBA picture.
@@ -175,6 +237,8 @@ def render_frame(
         width: Picture width in pixels.
         height: Picture height.
         visible: Labels to draw. None draws them all.
+        colours: label -> tessellation hue, so a prompt can name a face by
+            colour. None assigns them from the palette in track order.
 
     Returns:
         (height, width, 4) uint8 with straight alpha. Fully transparent
@@ -190,6 +254,7 @@ def render_frame(
         seen is a mesh in the wrong place.
     """
     canvas = empty_layer(width, height)
+    hues = colours if colours is not None else colours_for([t.label for t in tracks])
 
     for track in tracks:
         if visible is not None and track.label not in visible:
@@ -197,7 +262,7 @@ def render_frame(
 
         points = track.landmarks_on(frame)
         if points is not None:
-            draw_face(canvas, points)
+            draw_face(canvas, points, hues.get(track.label))
 
     return _unpremultiply(canvas)
 
@@ -207,6 +272,7 @@ def render_layer(
     width: int,
     height: int,
     visible: set[str] | None = None,
+    colours: dict[str, tuple[int, int, int]] | None = None,
 ):
     """
     Every frame of the mesh layer, in order.
@@ -239,7 +305,7 @@ def render_layer(
     )
 
     for frame in range(frame_count):
-        yield render_frame(tracks, frame, width, height, visible)
+        yield render_frame(tracks, frame, width, height, visible, colours)
 
 
 # --- ALPHA ---

@@ -251,6 +251,31 @@ MESH_LIPS_COLOUR = (255, 150, 40)          # Orange
 MESH_EYES_COLOUR = (90, 230, 120)          # Green, eyes and brows
 MESH_IRIS_COLOUR = (255, 255, 255)         # White, the ten refined points
 
+# --- WHICH FACE IS WHICH ---
+
+# A hue per face, on the tessellation only. Lips stay orange and eyes stay
+# green on everyone, so colour says *what* within a face and *who* between
+# faces, and the two never collide.
+#
+# **Identity has to be a colour because a prompt has to be able to name it.**
+# "The mesh on the left" stops being true the moment two people cross or one
+# walks out of shot, which is exactly when telling them apart matters.
+#
+# Green and orange are deliberately absent: they are the eye and lip
+# colours, and a face whose surface matched another face's features would
+# be the collision this scheme exists to avoid. The rest are saturated
+# enough to stay distinct over the depth pass, which is greyscale.
+#
+# The first is the existing blue, so a single-face job — the common case —
+# renders exactly as it did before this existed.
+MESH_IDENTITY_PALETTE = (
+    (80, 160, 255),    # Blue
+    (255, 80, 110),    # Red
+    (255, 215, 60),    # Yellow
+    (200, 110, 255),   # Purple
+    (60, 230, 230),    # Cyan
+)
+
 # Line widths as a fraction of picture height, so a mesh looks the same on a
 # 720p proxy and a 4K master instead of becoming a cobweb or a scribble.
 # Rounded up to at least one pixel at draw time.
