@@ -185,7 +185,7 @@ checkpoint at 4.11.
 
 ---
 
-## Phase 3 — Face Tracking (Current)
+## Phase 3 — Face Tracking, End to End (Current)
 
 Local and free, so this is where the iterating happens.
 
@@ -311,6 +311,44 @@ a small face in a wide shot. Those are what 3.4 onward actually need.
       tracked at 235/240, and the mesh plays back over the plate in the page.
       One face, whole frame, no seeds — drawing boxes is 5.4.*
 
+### Finishing it — a face pass you can actually make
+
+Pulled forward from Phase 5 on 2026-10-11. The reasoning: tracking is built
+and tested but you cannot *choose* a face, so multi-face, re-seeding and the
+colour scheme are all unreachable from the app — and nothing produces a file
+you could hand to anything. Depth would add a second unfinished system on
+top of an unfinished one.
+
+- [ ] **3.12** The proxy on the Faces step: play, scrub, step a frame at a
+      time, and the frame number read off the burned-in digits rather than
+      from the browser's idea of time. *Ports minicut's `player.js`, which
+      exists for exactly this problem*
+- [ ] **3.13** Draw a box, name the face, remove it. **Adding a seed to an
+      existing face has to be the more obvious action** — a returning person
+      given a new face gets a new colour, and every prompt naming the old one
+      breaks. That is the one way the identity scheme fails
+- [ ] **3.14** `selection.json` written and read back, so a selection
+      survives closing the app and is the whole interface between the picker
+      and the pipeline
+- [ ] **3.15** Track the selection from the page: a landmarker per face,
+      per-face progress saying which one, and **only re-tracking the faces
+      whose seeds changed**. All built at 3.5 and 3.6; this reaches it
+- [ ] **3.16** Per-face visibility, the colour swatch beside each name, and a
+      timeline showing each face's coverage, seeds and gaps — so where a
+      re-seed is needed is visible rather than guessed at
+- [ ] **3.17** **Output a face pass.** The mesh over the plate, or over grey
+      or black, or alone with alpha. A real deliverable: written through
+      `OutputWriter`, checked by the validator, recorded in a sidecar, with
+      the audio carried or deliberately left out. Format h265 by default;
+      the alpha format chosen by the app rather than offered.
+      *Everything underneath this exists and is tested — the stack, the
+      constant layers, the writer, the validator, the sidecar. Nothing calls
+      them*
+- [ ] **3.18** **Checkpoint: judge it.** The three real clips, end to end in
+      the app, looked at rather than measured. Settles the confidence
+      thresholds, the smoothing strength, the mesh colours and line weights,
+      and whether re-seeding feels like the normal way to work
+
 **Decision point at 3.8:** composite the mesh layer over the plate — which
 the stack already does, since the plate is a layer source — and judge on
 real footage — two people, a face crossing another, a turn to profile, a wipe —
@@ -407,21 +445,22 @@ settings, its own process button and its own result. **Every step is reachable
 from the start** and says what state it is in rather than being locked: someone
 opening the app for the first time should be able to see the shape of the job.
 
-- [ ] **5.1** The step strip *(port — `tabs.js` pattern)*: four steps, each
+- [x] **5.1** The step strip *(port — `tabs.js` pattern)*: four steps, each
       showing not run / processing / done, all clickable, each saying in place
-      what it still needs
-- [ ] **5.2** Source step: inspect, prepare, and the facts *(port —
-      `source.js`)*
+      what it still needs *(built at 1.4, driven at 3.11)*
+- [x] **5.2** Source step: inspect, prepare, and the facts *(port —
+      `source.js`)* *(done at 3.11)*
 - [ ] **5.3** Depth step: settings, a process button, the result playing in
       place, and the window and colour map underneath, re-rendering live
-- [ ] **5.4** Faces step *(port — `player.js`)*: draw, label, remove, add a
-      seed at the frame on screen, step between faces, per-face visibility.
-      The timeline shows each face's coverage, its seeds and its gaps, so where
-      a re-seed is needed is visible rather than guessed
+- [x] **5.4** Faces step — **moved to 3.12 to 3.16**, so face tracking is
+      finished and usable before depth begins
 - [ ] **5.5** Composite step: the stack, **reorderable**, with a switch per
       layer and the plate and grey card listed beside the passes. The output
       button, and the choice of whether to carry the audio. Outputting one
       pass is this with one layer on.
+      *The single-pass half of this moved to 3.17 — a face pass with a
+      chosen background. What is left here is the reorderable stack, which
+      only becomes interesting once there is a depth layer to reorder.*
       *Format: the artist chooses h265 (default) or h264, and nothing else.
       The alpha format is picked by the app for a face-mesh-only export
       rather than offered — three-quarters of a format dropdown would be

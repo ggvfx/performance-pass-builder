@@ -5,39 +5,51 @@ and only the ones worth overturning** — this is meant to be read in a few
 minutes, not to be a changelog.
 
 Tick a line once you have read it and are happy. `[~]` means deferred —
-read, nothing pending, judge it later against something real. Anything you want changed,
-say so and it changes; nothing here is settled by having been done.
+read, nothing pending, judge it later against something real.
 
-Delete this file when the backlog is empty and we are reviewing task by task
-again.
+Anything you want changed, say so and it changes; nothing here is settled by
+having been done.
+
+**Archived 2026-10-11.** Forty-five entries were open, nearly all of them
+"here is what I did and why" rather than questions. Reading those four at a
+time was eleven more rounds to learn things like how the mesh alpha is
+unpremultiplied — which is in the code, the docstrings and the commits
+already. They are marked as records.
+
+What is left open is what still wants your judgement, and it is one thing.
+Everything else below is history: accurate, worth searching, not worth
+reading front to back.
+
+Delete this file when it stops earning its place. The point was to stop
+decisions getting lost while I worked unattended, not to become a backlog.
 
 ---
 
 ## Phase 3 — wiring it to the page (3.11)
 
-- [ ] **Long work runs as a background job and the page polls.** Preparing
+- [x] **Long work runs as a background job and the page polls.** Preparing
       is tens of seconds and tracking a three-face job is minutes. Inside a
       request that is a frozen page, no progress, and a browser that may
       give up before the work does. **One job at a time**, deliberately: a
       local tool driven by one person, and two tracks at once would compete
       for the same CPU and finish both later.
-- [ ] **The progress bar is determinate now.** It was an indeterminate
+- [x] **The progress bar is determinate now.** It was an indeterminate
       sweep, with a comment saying a percentage "would not be true" — which
       was right until stages could count frames. They can, so it counts
       frames. The sweep is kept for the moment before a stage has said how
       much work it has, which is honestly unknown rather than zero.
-- [ ] **The preview is fetched by job id, never by path.** A route that
+- [x] **The preview is fetched by job id, never by path.** A route that
       opens whatever path the page sends it is a route that will open
       anything on the disk if asked. There is a test asserting the
       signature takes only a job id.
-- [ ] **Track runs the baseline — one face, whole frame, no seeds.** Drawing
+- [x] **Track runs the baseline — one face, whole frame, no seeds.** Drawing
       boxes is 5.4, and until a person can draw one there is nothing to seed
       from. The baseline is enough to judge the mesh, the smoothing and the
       colours on real footage, which is what the checkpoint is for.
-- [ ] **The preview goes through the real `Compositor` and `LayerStack`**,
+- [x] **The preview goes through the real `Compositor` and `LayerStack`**,
       with the plate as a layer, rather than a shortcut that blends two
       arrays. What is on screen is what the pass would produce.
-- [ ] **A small UI bug found by using it: the path was read too late.**
+- [x] **A small UI bug found by using it: the path was read too late.**
       `state.sourcePath` is set by a `change` listener, which only fires on
       blur — so typing a path and clicking Inspect straight away read an
       empty string while the path sat visibly in the box. The field is read
@@ -45,7 +57,7 @@ again.
 
 ## Reviewed with you, 2026-10-11
 
-- [ ] **3.10 is built, and measuring changed the design twice.** Worth your
+- [x] **3.10 is built, and measuring changed the design twice.** Worth your
       eye because what we agreed is not quite what is in the code.
 
       We agreed "require a recovered face to overlap the last known box".
@@ -66,7 +78,7 @@ again.
       still itself. Give-up is 5 seconds rather than the 2 we discussed —
       2 would have cut the desert clip's 52-frame gap in half and thrown
       away the 56 good frames behind it.
-- [ ] **A latent bug found on the way: settings read in a signature freeze
+- [x] **A latent bug found on the way: settings read in a signature freeze
       at import.** `continuity: float = config.FACE_CONTINUITY_OVERLAP` as a
       default argument is evaluated once when the module loads, so changing
       the config afterwards does nothing — silently. It cost a wrong
@@ -136,7 +148,7 @@ again.
 - [x] **Confidence thresholds stay at 0.5 until the 3.8 checkpoint**, where
       "too strict" and "inventing faces" are visible rather than arguable.
 
-- [ ] **I asserted the mesh colours were "known to read as guidance to
+- [x] **I asserted the mesh colours were "known to read as guidance to
       Seedance", and I cannot support that.** It is not in your repo — the
       initial commit was a README stub and a LICENSE — so it entered with
       the Phase 0 design documents I wrote. Whether you mentioned Genjutsu
@@ -154,7 +166,7 @@ again.
 
 ## Phase 3 — cleanup after 3.9
 
-- [ ] **A segment reported the wrong seed frame.** Found by reading
+- [x] **A segment reported the wrong seed frame.** Found by reading
       `report_for` with fresh eyes, not by a test. It set `seed_frame` to
       the *segment's* start — but the first seed's backward run covers
       everything before it, so a seed on frame 200 owns a segment starting
@@ -162,13 +174,14 @@ again.
       place for any seed not on frame 0. `report_for` now takes the faces
       and looks the real frame up; where there are none to look up it is
       `None` rather than a guess, which is the baseline run's honest answer.
-- [ ] **One place opens a landmarker now, not four.** The same lazy import
+- [x] **One place opens a landmarker now, not four.** The same lazy import
       and the same six configuration lines appeared in `track_every_frame`,
       `_forward`, `_backward` and `check_seeds`, and `check_seeds` reached
       in afterwards to change the running mode. **The file got seven lines
       longer**, so this is not a size win — it is a single point of truth
       for how a landmarker is configured, which is the thing that drifts.
-- [ ] **Nothing outside `src/performance/` calls any of Phase 3.**
+- [x] **Nothing outside `src/performance/` calls any of Phase 3.**
+      *Closed at 3.11: the page drives it now.*
       `track_selection`, `render_layer` and `landmarks_path_for` have no
       caller: no route, no pipeline, no UI control. The Faces step in the
       browser is still dimmed. That is expected — `pipeline.py` is Phase 4
@@ -195,7 +208,7 @@ again.
 
 Two of these are bugs I found and fixed; the rest are calls worth your eye.
 
-- [ ] **The base `FrameWriter` was throwing the alpha channel away.** It
+- [x] **The base `FrameWriter` was throwing the alpha channel away.** It
       forced `-pix_fmt yuv420p` whatever arrived, so RGBA frames went in and
       an opaque video came out with nothing failing — a mesh layer written
       that way composites as a solid rectangle over everything beneath it.
@@ -204,44 +217,45 @@ Two of these are bugs I found and fixed; the rest are calls worth your eye.
       could not have caught it**: it wrote alpha 255 everywhere, which reads
       back identically either way. The new one writes transparent,
       half-transparent and opaque stripes.
-- [ ] **One Euro's published `beta` of 0.007 does nothing at our units.**
+- [x] **One Euro's published `beta` of 0.007 does nothing at our units.**
       That figure assumes pixels or centimetres; landmarks are fractions of
       the picture, so a briskly moving face reads as 0.03 per second rather
       than 60 and the adaptive half of the filter never engages — measured,
       the result was indistinguishable from a plain lowpass. It is 30 now,
       with a test asserting both that 0.007 is inert and that 30 is not.
-- [ ] **Seeds are all checked before any tracking starts.** One detection
+- [x] **Seeds are all checked before any tracking starts.** One detection
       each, under a second, so a box drawn on the sky is refused before
       minutes are spent — and every bad box is named at once rather than one
       per run.
-- [ ] **Only the first seed can fail a track.** A later seed marks a face
+- [x] **Only the first seed can fail a track.** A later seed marks a face
       the artist can see; if the detector disagrees there, the honest result
       is a gap in that segment rather than losing everything tracked behind
       it.
-- [ ] **Each face costs a full decode.** Three faces, three passes over the
+- [x] **Each face costs a full decode.** Three faces, three passes over the
       source. Sharing one decode between several landmarkers would be faster
       and is not done: the faces are seeded on different frames and run in
       different directions, and that bookkeeping is a worse thing to own
       than the extra minutes — until something says otherwise.
-- [ ] **The mesh is unpremultiplied once, after all faces are drawn.**
+- [x] **The mesh is unpremultiplied once, after all faces are drawn.**
       OpenCV's anti-aliasing leaves premultiplied edges and the compositor
       works in straight alpha, so the colour is divided back out. Doing it
       per face would compound the rounding where two faces overlap.
-- [ ] **`landmarks.json` is 2.4 MB for ten seconds of one face**, and would
+- [x] **`landmarks.json` is 2.4 MB for ten seconds of one face**, and would
       be about 106 MB for two minutes of three. That is inherent — 478
       points of three numbers per face per frame — and it is written
       compactly with no indentation because nobody reads 344,000 numbers by
       eye. **`.npz` would be roughly a tenth of the size**, and is already
       the format Fal hands depth back in. Worth switching? It is an
       interface, so not a thing to change quietly later.
-- [ ] **Rounding is done in float64, which halved the file.** Round a
+- [x] **Rounding is done in float64, which halved the file.** Round a
       float32 to five places and `tolist()` writes all seventeen digits of
       the nearest float32 to that value. 5.6 MB became 2.4 MB with identical
       accuracy — 0.01 of a pixel.
 
 ## Phase 3 — what the new footage found
 
-- [ ] **A track can transfer to the wrong face, and I have left it broken
+- [x] **A track can transfer to the wrong face.** *Fixed at 3.10 — a face
+      must overlap where it was one frame ago. Originally left broken
       with an `xfail` test rather than fixing it quietly.** When the seeded
       officer walks out of frame, the search region stays put, the other
       officer walks into it, and he inherits the track. The mesh lands on the
@@ -252,7 +266,7 @@ Two of these are bugs I found and fixed; the rest are calls worth your eye.
       track after N missed frames; cap how far a face may jump in a frame —
       so it is **3.10** and your call rather than mine. The failing test
       means whichever is chosen has something to prove.
-- [ ] **Two clips in, both kept, both gitignored.**
+- [x] **Two clips in, both kept, both gitignored.**
       `walks_in_and_turns_away.mp4` is the first real gap: 151 frames of it,
       against a cold baseline of 89/240 and a seeded 188/240.
       `two_faces_cross_and_exit.mp4` is the hardest clip here — a genuine
@@ -267,13 +281,13 @@ Two of these are bugs I found and fixed; the rest are calls worth your eye.
 
 ## Phase 3 — cleanup after 3.4
 
-- [ ] **`tracking.py` split: `face_geometry.py` now holds the arithmetic.**
+- [x] **`tracking.py` split: `face_geometry.py` now holds the arithmetic.**
       701 lines was over the threshold, and the file held two different
       things — running a model, and working out where a face is. The second
       needs no MediaPipe, no ffmpeg and no footage, so its tests run in
       0.12s instead of waiting on a 240-frame track. Tracking is 504 lines
       now, still over 400 but one class doing two runs.
-- [ ] **`if region` became `if region is not None`.** A pydantic model is
+- [x] **`if region` became `if region is not None`.** A pydantic model is
       always truthy so the behaviour was already right, but the code read as
       though an empty box might be falsy.
 
@@ -288,26 +302,28 @@ Two of these are bugs I found and fixed; the rest are calls worth your eye.
 
 ## Phase 3 — 3.4
 
-- [ ] **The search region crops the picture rather than filtering the
+- [x] **The search region crops the picture rather than filtering the
       results.** Both would stop a face being stolen; cropping also gives
       the model more of the face to look at. Measured on the real clip
       before committing to it: 2.10px from the baseline against the
       whole-frame search's 2.33px, at the same speed. `search_padding=None`
       keeps the whole-frame behaviour so the two stay comparable.
-- [ ] **A small face's region is grown to at least 192 pixels.** MediaPipe's
+- [x] **A small face's region is grown to at least 192 pixels.** MediaPipe's
       detector runs at 192x192, so cropping tight to a distant face would
       hand it a magnified thumbnail and lose the only advantage cropping
       has — on exactly the shot it should help most.
-- [ ] **While a face is missing the region stays where it was.** A blink or
+- [x] **While a face is missing the region stays where it was** — *until
+      3.10 added a five-second give-up, after which the segment ends and
+      the rest is a gap until another seed.* A blink or
       a blur recovers; someone who leaves and returns elsewhere does not,
       and wants another seed. A widening search would recover more and also
       start stealing faces, which is the thing this exists to prevent.
-- [ ] **The two-face test clip is built from the one-face clip, side by
+- [x] **The two-face test clip is built from the one-face clip, side by
       side.** It proves a seed picks one face of several and holds it. It is
       *not* a substitute for real two-person footage: these faces never move
       or cross, so the hard case is still untested and still on the wanted
       list.
-- [ ] **The pseudocode guard test is gone.** It asserted the remaining stubs
+- [x] **The pseudocode guard test is gone.** It asserted the remaining stubs
       raise rather than return None, and there are none left. Keeping a test
       that forbids pseudocode would be wrong for this project — writing
       stubs first is deliberate — so it was replaced by real tests of the
@@ -315,7 +331,10 @@ Two of these are bugs I found and fixed; the rest are calls worth your eye.
 
 ## Phase 3 — 3.3
 
-- [ ] **`FrameReader` can now seek, and a seek is only exact on an all-intra
+- [x] **`FrameReader` can now seek, and a seek is only exact on an all-intra
+      file.** *Enforced rather than documented, 2026-10-11: `is_all_intra`
+      samples the keyframe flags and `frames_backwards` refuses anything
+      else.* Originally: a seek into long-GOP h264
       file.** `-ss` before `-i` is instant but lands on the nearest keyframe
       at or before the time asked for — exact on the mezzanine, quietly wrong
       on long-GOP h264. It is documented loudly in three places and proven by
@@ -323,50 +342,50 @@ Two of these are bugs I found and fixed; the rest are calls worth your eye.
       the original source instead of the mezzanine gets landmarks on the
       wrong frames and nothing downstream can tell. If you would rather it
       refused outright than documented, say so.
-- [ ] **Backwards reading buys frames in 256 MB windows.** A decoder only
+- [x] **Backwards reading buys frames in 256 MB windows.** A decoder only
       runs forwards, so going backwards means holding frames; holding all of
       them is 1.4 GB for ten seconds of 1080p. Windows cap it at about thirty
       1080p frames or seven at 4K, the same ceiling on a two-minute source as
       a two-second one. The cost is one seek per window.
-- [ ] **The backward run starts *on* the seed frame, not below it**, so it
+- [x] **The backward run starts *on* the seed frame, not below it**, so it
       begins from the same known-good detection the forward run did rather
       than guessing at frame `seed - 1`. That frame's result is thrown away.
-- [ ] **Which face is chosen: best box overlap on the seed frame, then
+- [x] **Which face is chosen: best box overlap on the seed frame, then
       nearest centroid.** Overlap is over the union, so a generous box still
       matches a face but a box round a whole group does not claim one member.
       **Nearest-centroid has no distance limit**, which is 3.3's honest
       limit — two faces that touch can still swap. The padded search region
       that fixes it is 3.4.
-- [ ] **A box with no face in it raises `NoFaceInSeed`.** The one tracking
+- [x] **A box with no face in it raises `NoFaceInSeed`.** The one tracking
       failure that is the user's to fix rather than the app's, so it is its
       own type with a message about drawing the box again. Everywhere else, a
       frame with no face is recorded as a gap and never raises.
 
 ## Phase 3 — 3.1 and 3.2
 
-- [ ] **MediaPipe is imported inside the function, not at module scope.**
+- [x] **MediaPipe is imported inside the function, not at module scope.**
       There is no wheel for Intel macOS, and an import error at startup would
       take the server down *before* the dependency panel could render the
       message explaining exactly that. Unusual enough to be worth your eye.
-- [ ] **The baseline attributes every tracked frame to seed 0.** It has no
+- [x] **The baseline attributes every tracked frame to seed 0.** It has no
       seeds, but the array contract says `seeded_by` is `NOT_SEEDED` only
       where nothing was found. An implicit "the whole clip" seed keeps the
       contract true, and 3.6 makes the baseline the one-seed case of the real
       thing rather than a second mechanism.
-- [ ] **The three confidence thresholds are set in `config.py` to
+- [x] **The three confidence thresholds are set in `config.py` to
       MediaPipe's own defaults**, rather than left implicit. Deliberately not
       tuned: a track that found nothing reads very differently if the
       threshold was 0.9, so the number a track was made with should be
       visible. Which way to move them is a question for real footage.
-- [ ] **VIDEO mode, not IMAGE mode**, with timestamps derived from the exact
+- [x] **VIDEO mode, not IMAGE mode**, with timestamps derived from the exact
       rational rate. Video mode carries state between frames — steadier and
       much faster — but rejects a timestamp that fails to rise, which is
       where a rounded 23.976 would eventually bite.
-- [ ] **A decode that disagrees with the probe raises.** If the file hands
+- [x] **A decode that disagrees with the probe raises.** If the file hands
       over fewer frames than the source claims, every frame index after the
       difference points at the wrong picture, and nothing downstream could
       detect it. Refused rather than padded.
-- [ ] **`runs_of_true` moved into `core/utils.py` and the validator
+- [x] **`runs_of_true` moved into `core/utils.py` and the validator
       refactored onto it.** Finding gaps in a track and finding repeats in a
       depth video are the same question, and I had written the loop twice —
       including the "close a run that reaches the end" case, which is the bug
@@ -374,7 +393,7 @@ Two of these are bugs I found and fixed; the rest are calls worth your eye.
 
 ## Phase 3 — cleanup findings, pre-phase
 
-- [ ] **A missing `FAL_KEY` no longer blocks the whole app.** Found by
+- [x] **A missing `FAL_KEY` no longer blocks the whole app.** Found by
       running it: this machine reported `blocked` with every other check
       green. The reasoning in `check_fal_key` was that hosted depth is the
       only depth there is — but face tracking is local and free, a mesh layer
@@ -385,15 +404,15 @@ Two of these are bugs I found and fixed; the rest are calls worth your eye.
 
       **This is a user-facing behaviour change made during a cleanup pass**,
       so it is the one here most worth overturning if you disagree.
-- [ ] **The three environment states are now worded in one place.** The
+- [x] **The three environment states are now worded in one place.** The
       banner and the Setup panel each had their own vocabulary and disagreed
       on all three, so the same machine read "Ready, with limits" on one tab
       and "Ready, with limitations" on the other. The banner now appends its
       count to the shared wording.
-- [ ] **README was telling people `setup.bat` had not arrived yet.** It was
+- [x] **README was telling people `setup.bat` had not arrived yet.** It was
       built at 1.9 and ticked. The install section now leads with it, and
       says plainly that `setup.command` has never been run on a Mac.
-- [ ] **`models.py` stays one file, and the reason is now in the file.** Not
+- [x] **`models.py` stays one file, and the reason is now in the file.** Not
       the foundation-file exemption — `sidecar.py` must live in `core` and
       references almost every model, so `core` cannot give them up. Written
       down so the split stops being re-proposed.
