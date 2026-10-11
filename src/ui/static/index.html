@@ -94,14 +94,14 @@
                     <button class="secondary" data-picker="source">Browse&hellip;</button>
                 </div>
                 <div class="action-row">
-                    <button id="inspect-button" disabled>Inspect</button>
-                    <span id="inspect-status" class="status">Arrives at task 2.1.</span>
+                    <button id="inspect-button">Inspect</button>
+                    <span id="inspect-status" class="status">Choose some footage.</span>
                 </div>
                 <dl class="facts" id="source-facts">
-                    <dt>Frame rate</dt><dd>&mdash;</dd>
-                    <dt>Frames</dt><dd>&mdash;</dd>
-                    <dt>Resolution</dt><dd>&mdash;</dd>
-                    <dt>Audio</dt><dd>&mdash;</dd>
+                    <dt>Frame rate</dt><dd id="fact-rate">&mdash;</dd>
+                    <dt>Frames</dt><dd id="fact-frames">&mdash;</dd>
+                    <dt>Resolution</dt><dd id="fact-resolution">&mdash;</dd>
+                    <dt>Audio</dt><dd id="fact-audio">&mdash;</dd>
                 </dl>
             </section>
 
@@ -114,7 +114,7 @@
                 </p>
                 <div class="action-row">
                     <button id="prepare-button" disabled>Prepare</button>
-                    <span id="prepare-status" class="status">Arrives at task 5.2.</span>
+                    <span id="prepare-status" class="status">Inspect the footage first.</span>
                 </div>
                 <div id="prepare-progress" class="progress" hidden><div class="progress-bar"></div></div>
             </section>
@@ -218,7 +218,7 @@
                 <ul class="faces" id="face-list">
                     <li class="face">
                         <span class="face-label">No faces yet</span>
-                        <span class="face-seeds">Each face keeps its own list of seeds.</span>
+                        <span class="face-seeds">Track to see what was found.</span>
                     </li>
                 </ul>
             </section>
@@ -232,9 +232,14 @@
                 </p>
                 <div class="action-row">
                     <button id="faces-process" disabled>Track faces</button>
-                    <span id="faces-status" class="status">Arrives at Phase 3.</span>
+                    <span id="faces-status" class="status">Inspect the footage first.</span>
                 </div>
                 <div id="faces-progress" class="progress" hidden><div class="progress-bar"></div></div>
+                <video id="faces-preview" class="preview" controls loop hidden></video>
+                <p class="hint">
+                    One face, whole frame, no seeds yet &mdash; enough to look at the mesh
+                    on real footage. Drawing boxes to choose who to follow arrives at 5.4.
+                </p>
             </section>
         </section>
 

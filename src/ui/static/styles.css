@@ -547,8 +547,11 @@ summary .summary { margin: 0; }
 
 /* ===== PROGRESS ===== */
 
-/* Deliberately indeterminate: it says work is happening, which is true, rather
-   than a percentage, which would not be */
+/* Determinate, now that there is something true to show. This was an
+   indeterminate sweep while no stage could say how much work it had: a
+   percentage would have been invented. Jobs count frames, so the bar means
+   frames — and the sweep is kept for the moment before a job has said how
+   many there are, which is honestly unknown rather than zero. */
 .progress {
     height: 3px;
     margin-top: 12px;
@@ -558,13 +561,49 @@ summary .summary { margin: 0; }
 }
 
 .progress-bar {
-    width: 30%;
+    width: 0;
     height: 100%;
     background: var(--ok);
+    transition: width 0.25s linear;
+}
+
+/* Before the total is known */
+.progress-bar.unknown {
+    width: 30%;
+    transition: none;
     animation: sweep 1.2s ease-in-out infinite;
 }
 
 @keyframes sweep {
     from { transform: translateX(-100%); }
     to { transform: translateX(430%); }
+}
+
+/* --- WHAT A TRACK PRODUCED --- */
+
+/*
+ * The preview plays at whatever size the card allows. A control pass is
+ * judged by looking at it, so this is deliberately as large as it can be
+ * rather than a thumbnail.
+ */
+.preview {
+    display: block;
+    width: 100%;
+    margin-top: 12px;
+    border-radius: 4px;
+    background: #000;
+}
+
+/*
+ * A face's colour, beside its name. This is what someone reads off when
+ * writing a prompt that has to say which mesh is which person, so it has to
+ * be the actual rendered hue rather than an approximation of it.
+ */
+.face-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 8px;
+    border-radius: 2px;
+    background: #444;
 }

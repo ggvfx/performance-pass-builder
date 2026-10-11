@@ -15,9 +15,11 @@ generated yet; depth is Phase 4. Most of the foundation is ported from
 [minicut-shot-detector](https://github.com/ggvfx/minicut-shot-detector)
 rather than rewritten — see [PORTING.md](PORTING.md).
 
-**Works now:** the app reports what it needs in three states with a copyable
-fix for each, browses this machine for a source, and lays out the whole
-workflow with every unbuilt control dimmed.
+**Works now, in the browser:** choose footage, inspect it, prepare it, and
+track a face — then watch the mesh composited over the plate in the page.
+The app also reports what it needs in three states with a copyable fix for
+each, and lays out the rest of the workflow with every unbuilt control
+dimmed.
 
 Underneath, the whole of Phase 2: a source probed to an exact rational frame
 rate with variable frame rate refused and a reason given, copied to an

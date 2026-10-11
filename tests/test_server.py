@@ -86,10 +86,17 @@ def test_the_stack_is_numbered_from_the_bottom():
 # is worse than one that admits it. Adding to this list is how enabling a
 # control stays a deliberate act rather than something that slips through.
 LIVE_CONTROLS = {
-    'id="source-path"',      # 1.7 — a typed path is as valid as a picked one
-    'data-picker="source"',  # 1.7 — opens the path picker
-    "data-step=",            # the strip itself: every step is reachable
+    'id="source-path"',       # 1.7 — a typed path is as valid as a picked one
+    'data-picker="source"',   # 1.7 — opens the path picker
+    "data-step=",             # the strip itself: every step is reachable
+    'id="inspect-button"',    # 3.11 — probes the footage
+    'id="recheck-button"',    # 1.6 — re-runs the dependency checks
 }
+
+# Controls that start disabled and are enabled by the page once something
+# earlier has happened — Prepare and Track both need an inspected source.
+# They stay in the markup as disabled, so the guard below still covers them.
+
 
 
 def test_only_wired_performance_controls_are_enabled():

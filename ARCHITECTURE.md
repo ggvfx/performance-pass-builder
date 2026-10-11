@@ -559,6 +559,8 @@ the restructure.
 | `src/performance/pipeline.py` | Stage order within a pass, and nothing else |
 | `src/ui/server.py` | The app, the page, the static mount, the wiring |
 | `src/ui/runtime.py` | The toolchain and checker the routers share |
+| `src/ui/jobs.py` | Background jobs, so a long stage reports progress instead of freezing a request |
+| `src/ui/routes/performance.py` | Inspect, prepare, track, and the preview a track produces |
 | `src/ui/browse.py` | Directory listing for the path picker |
 | `src/ui/routes/setup.py` | What is installed, which backend is used |
 | `src/ui/routes/performance.py` | Prepare, run a pass, composite, output |

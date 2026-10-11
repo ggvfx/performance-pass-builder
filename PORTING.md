@@ -174,6 +174,7 @@ they have no minicut ancestor at all:
 | `src/performance/smoothing.py` | minicut had nothing to smooth |
 | `src/performance/mesh.py` | minicut drew nothing |
 | `src/performance/landmarks.py` | minicut had no landmarks |
+| `src/ui/jobs.py` | minicut's work was fast enough to do inside the request |
 
 ## Checklist
 

@@ -302,6 +302,15 @@ a small face in a wide shot. Those are what 3.4 onward actually need.
       never interpolated. 2.4 MB for ten seconds of one face — see the
       decision about `.npz` for long jobs.*
 
+- [x] **3.11** **Wire it to the page.** Inspect and Prepare on the Source
+      step, Track on the Faces step, driving the real pipeline rather than a
+      script. Long work runs as a background job so the bar moves and each
+      stage says what it is doing; the preview composites the mesh over the
+      plate through the real `Compositor` and the real `LayerStack`.
+      *Done, and looked at in a browser: the night clip inspected, prepared,
+      tracked at 235/240, and the mesh plays back over the plate in the page.
+      One face, whole frame, no seeds — drawing boxes is 5.4.*
+
 **Decision point at 3.8:** composite the mesh layer over the plate — which
 the stack already does, since the plate is a layer source — and judge on
 real footage — two people, a face crossing another, a turn to profile, a wipe —

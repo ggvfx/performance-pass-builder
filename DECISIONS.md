@@ -13,6 +13,36 @@ again.
 
 ---
 
+## Phase 3 — wiring it to the page (3.11)
+
+- [ ] **Long work runs as a background job and the page polls.** Preparing
+      is tens of seconds and tracking a three-face job is minutes. Inside a
+      request that is a frozen page, no progress, and a browser that may
+      give up before the work does. **One job at a time**, deliberately: a
+      local tool driven by one person, and two tracks at once would compete
+      for the same CPU and finish both later.
+- [ ] **The progress bar is determinate now.** It was an indeterminate
+      sweep, with a comment saying a percentage "would not be true" — which
+      was right until stages could count frames. They can, so it counts
+      frames. The sweep is kept for the moment before a stage has said how
+      much work it has, which is honestly unknown rather than zero.
+- [ ] **The preview is fetched by job id, never by path.** A route that
+      opens whatever path the page sends it is a route that will open
+      anything on the disk if asked. There is a test asserting the
+      signature takes only a job id.
+- [ ] **Track runs the baseline — one face, whole frame, no seeds.** Drawing
+      boxes is 5.4, and until a person can draw one there is nothing to seed
+      from. The baseline is enough to judge the mesh, the smoothing and the
+      colours on real footage, which is what the checkpoint is for.
+- [ ] **The preview goes through the real `Compositor` and `LayerStack`**,
+      with the plate as a layer, rather than a shortcut that blends two
+      arrays. What is on screen is what the pass would produce.
+- [ ] **A small UI bug found by using it: the path was read too late.**
+      `state.sourcePath` is set by a `change` listener, which only fires on
+      blur — so typing a path and clicking Inspect straight away read an
+      empty string while the path sat visibly in the box. The field is read
+      at click time now.
+
 ## Reviewed with you, 2026-10-11
 
 - [ ] **3.10 is built, and measuring changed the design twice.** Worth your
