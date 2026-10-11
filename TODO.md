@@ -232,12 +232,16 @@ a small face in a wide shot. Those are what 3.4 onward actually need.
       either face tracks that face for all 240 frames and never crosses.
       `NormalisedBox.to_pixels` and `.padded` implemented, which was the
       last pseudocode in the skeleton.*
-- [x] **3.5** Several faces, one tracker each
+- [x] **3.5** Several faces, one tracker each, **re-tracking only what changed**
       *`track_selection`, with a landmarker per face so two people cannot
       become each other. Every seed is checked before any tracking starts —
       one detection each, under a second — so a box drawn on the sky is
       refused before minutes are spent, and every bad box is named at once.
-      Both officers tracked separately off the night clip.*
+      Both officers tracked separately off the night clip. Editing one
+      face's seeds re-tracks only that face and hands the others back
+      untouched, because each one costs a full decode; `on_face` names the
+      face being worked on so a page can say which rather than only moving
+      a bar.*
 - [x] **3.6** Several seeds per face — segments between them, backward from the
       first, forward from each to the next. Every frame records which seed
       produced it, or that it is a gap. 3.3 becomes the one-seed case of this

@@ -549,7 +549,11 @@ class FaceTracker:
     # --- A WHOLE SELECTION ---
 
     def check_seeds(
-        self, source: SourceInfo, selection: Selection, path: Path | None = None
+        self,
+        source: SourceInfo,
+        selection: Selection,
+        path: Path | None = None,
+        only: set[str] | None = None,
     ) -> list[str]:
         """
         Whether every seed box actually has a face in it, before tracking any.
@@ -558,6 +562,10 @@ class FaceTracker:
             source: The probed source.
             selection: Every face the artist chose.
             path: **The mezzanine.** This seeks to each seed frame.
+            only: Labels to check. None checks them all. A face being kept
+                rather than re-tracked should not be checked — its box
+                cannot have gone bad, and checking it would only create a
+                way for an untouched face to fail a job.
 
         Returns:
             One message per bad seed, empty when they are all fine.
@@ -578,6 +586,9 @@ class FaceTracker:
         # rule would be in the way.
         with self._landmarker(config.SEED_FACE_LIMIT, video=False) as (mp, landmarker):
             for face in selection.faces:
+                if only is not None and face.label not in only:
+                    continue
+
                 for index, seed in enumerate(face.seeds):
                     region = search_region(
                         seed.box, source.width, source.height, config.FACE_SEARCH_PADDING
@@ -616,7 +627,12 @@ class FaceTracker:
                             f"frame {seed.frame}"
                         )
 
-        logging.info(f"Checked {sum(len(f.seeds) for f in selection.faces)} seed(s): {len(problems)} bad")
+        checked = sum(
+            len(face.seeds)
+            for face in selection.faces
+            if only is None or face.label in only
+        )
+        logging.info(f"Checked {checked} seed(s): {len(problems)} bad")
         return problems
 
     def track_selection(
@@ -624,44 +640,61 @@ class FaceTracker:
         source: SourceInfo,
         selection: Selection,
         path: Path | None = None,
+        retrack: set[str] | None = None,
+        existing: list[FaceTrack] | None = None,
+        on_face: "Callable[[str, int, int], None] | None" = None,
         on_progress: "Callable[[int, int], None] | None" = None,
     ) -> list[FaceTrack]:
         """
-        One track per chosen face, each from its own seed.
+        One track per chosen face, each from its own seeds.
 
         Args:
             source: The probed source. Its frame count is every track's length.
             selection: The faces, which the model has already checked against
                 this source's length and for duplicate labels.
             path: **The mezzanine.** Backward runs seek.
+            retrack: Labels to track. None tracks every face. Anything left
+                out must appear in `existing`.
+            existing: Tracks already made, reused for any face not being
+                re-tracked. Matched by label.
+            on_face: Called with (label, position, how many are being
+                tracked) as each face starts — so the page can say "Tracking
+                Partner, 2 of 3" rather than only moving a bar.
             on_progress: Called with (frames done, frames total) across the
-                whole job, not per face — so a three-face run fills one bar
-                rather than three.
+                whole job, so several faces fill one bar rather than three.
 
         Returns:
-            A FaceTrack per face, in the selection's order.
+            A FaceTrack per face, in the selection's order, re-tracked and
+            reused tracks together.
 
         Raises:
-            NoFaceInSeed: One or more boxes have no face in them. Every bad
-                box is named, not just the first.
-            ValueError: The selection was made against a different source.
+            NoFaceInSeed: One or more boxes being tracked have no face in
+                them. Every bad box is named, not just the first.
+            ValueError: The selection was made against a different source, or
+                a face is neither being tracked nor has an existing track.
 
         Notes:
             **A landmarker per face, never one shared.** Two people in frame
             must not be able to become each other, and MediaPipe's video mode
             carries state — a shared tracker would carry it between faces.
 
-            **Every seed is checked before any tracking starts.** See
-            `check_seeds`: failing after four minutes of work, on a box that
-            could have been rejected in a second, is the kind of thing that
-            makes a tool feel hostile.
+            **Only what was asked for is tracked.** Editing one face's seeds
+            should not re-track the two the artist already looked at and
+            accepted, each of which costs a full decode of the source. So the
+            caller says which faces changed and hands back the rest, and what
+            comes out is still a complete set in selection order — the merge
+            happens here rather than in every caller.
 
-            **Each face costs a full decode of the source.** Three faces,
-            three passes. Sharing one decode between several landmarkers
-            would be faster and is not done, because the faces are seeded on
-            different frames and run in different directions — the
-            bookkeeping to share a pass between them is a worse thing to own
-            than the extra minutes, until something says otherwise.
+            **The seeds checked are the seeds being used.** A kept face's box
+            cannot have gone bad, and checking it would only create a way for
+            an untouched face to fail a job.
+
+            **Each tracked face costs a full decode of the source.** Three
+            faces, three passes. Sharing one decode between several
+            landmarkers would be faster and is not done, because the faces
+            are seeded on different frames and run in different directions —
+            the bookkeeping to share a pass between them is a worse thing to
+            own than the extra minutes.
         """
         if selection.source_frame_count != source.frame_count:
             raise ValueError(
@@ -669,15 +702,36 @@ class FaceTracker:
                 f"and the source has {source.frame_count}. It belongs to a different cut."
             )
 
-        problems = self.check_seeds(source, selection, path=path)
-        if problems:
-            raise NoFaceInSeed(
-                "some boxes have no face in them:\n  "
-                + "\n  ".join(problems)
-                + "\nTry drawing them again, or seeding on another frame."
+        kept = {track.label: track for track in existing or []}
+        wanted = (
+            [face for face in selection.faces if face.label in retrack]
+            if retrack is not None
+            else list(selection.faces)
+        )
+
+        orphans = [
+            face.label
+            for face in selection.faces
+            if face not in wanted and face.label not in kept
+        ]
+        if orphans:
+            raise ValueError(
+                f"these faces are not being tracked and have no existing track: "
+                f"{orphans}. A selection has to come back whole."
             )
 
-        total = source.frame_count * len(selection.faces)
+        if wanted:
+            problems = self.check_seeds(
+                source, selection, path=path, only={face.label for face in wanted}
+            )
+            if problems:
+                raise NoFaceInSeed(
+                    "some boxes have no face in them:\n  "
+                    + "\n  ".join(problems)
+                    + "\nTry drawing them again, or seeding on another frame."
+                )
+
+        total = source.frame_count * len(wanted)
         done = 0
 
         def across_the_job(_face_done: int, _face_total: int) -> None:
@@ -686,13 +740,21 @@ class FaceTracker:
             if on_progress is not None:
                 on_progress(done, total)
 
-        tracks = [
-            self.track_face(source, face, path=path, on_progress=across_the_job)
-            for face in selection.faces
-        ]
+        for position, face in enumerate(wanted, start=1):
+            if on_face is not None:
+                on_face(face.label, position, len(wanted))
 
+            kept[face.label] = self.track_face(
+                source, face, path=path, on_progress=across_the_job
+            )
+
+        tracks = [kept[face.label] for face in selection.faces]
+
+        reused = len(selection.faces) - len(wanted)
         logging.info(
-            f"Tracked {len(tracks)} face(s): "
+            f"Tracked {len(wanted)} face(s)"
+            + (f", reused {reused}" if reused else "")
+            + ": "
             + ", ".join(f"{t.label} {int(t.tracked.sum())}/{source.frame_count}" for t in tracks)
         )
         return tracks

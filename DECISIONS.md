@@ -15,6 +15,22 @@ again.
 
 ## Reviewed with you, 2026-10-11
 
+- [x] **Faces stay separate passes, and only what changed is re-tracked.**
+      Agreed, with the two requirements you added. `track_selection` takes
+      `retrack` and `existing`: name the faces that changed, hand back the
+      rest, and a complete set comes out in selection order. A kept face's
+      seeds are not re-checked — its box cannot have gone bad, and checking
+      it would only create a way for an untouched face to fail a job.
+      `on_face(label, position, count)` names the face being tracked, and
+      the count is what is *being* tracked, not the whole selection, or the
+      bar lies about the work left.
+- [x] **Only the first seed can fail a track** — you noted this was already
+      the behaviour you were asking for.
+- [x] **A missing `FAL_KEY` degrades rather than blocks.** Confirmed: not
+      needed for face tracking, so it should not stop the app.
+- [x] **A decode that disagrees with the probe raises.** Confirmed.
+
+
 - [x] **Faces are told apart by a hue on the tessellation.** Agreed: hue on
       the surface only, lips and eyes unchanged on everyone, auto-assigned
       from a palette in the order faces were chosen. Green and orange are

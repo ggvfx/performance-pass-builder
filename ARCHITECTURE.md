@@ -307,6 +307,18 @@ tested one.** Whether a generation model reads these as guidance rather than
 as picture content has never been checked here, which is one of the things
 the 3.8 checkpoint is for.
 
+**Each face is tracked separately and only when it changes.** A face costs a
+full decode of the source, so editing one person's seeds re-tracks that
+person and hands the rest back as they were. The complete set comes back in
+selection order either way, so no caller has to merge them — which is how
+one of them would eventually go missing. A kept face's seeds are not
+re-checked: its box cannot have gone bad, and checking it would only create
+a way for an untouched face to fail a job.
+
+The tracker also says **which** face it is working on as it starts each one,
+because a three-face job is minutes and a bar that only moves does not tell
+an artist what is happening.
+
 **All faces render to one layer**, not one layer each: a three-person shot
 should not fill the stack with near-identical rows, and per-face visibility
 belongs on the Faces step where the faces are.

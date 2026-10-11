@@ -1048,6 +1048,175 @@ def test_smoothing_calms_a_real_track_without_flattening_it(one_face_source, one
     filtered.validate_shape()
 
 
+# --- RE-TRACKING ONE FACE ---
+
+# Each face costs a full decode, so editing one face's seeds must not
+# re-track the ones already looked at and accepted.
+
+
+def test_only_the_named_face_is_tracked_again(
+    tracker, crossing_source, crossing_mezzanine, both_tracks
+):
+    """
+    The point. A face the artist has accepted comes back as the same object,
+    not as a fresh pass over the footage.
+    """
+    selection = a_selection(crossing_source, *both_officers())
+
+    again = tracker.track_selection(
+        crossing_source,
+        selection,
+        path=crossing_mezzanine,
+        retrack={"Partner"},
+        existing=both_tracks,
+    )
+
+    assert again[0] is both_tracks[0], "the kept face was tracked again"
+    assert again[1] is not both_tracks[1], "the named face was not re-tracked"
+
+
+def test_what_comes_back_is_still_the_whole_selection(
+    tracker, crossing_source, crossing_mezzanine, both_tracks
+):
+    """
+    Re-tracked and reused together, in selection order, so a caller never
+    has to merge them — which is how one of them would eventually go
+    missing.
+    """
+    selection = a_selection(crossing_source, *both_officers())
+
+    again = tracker.track_selection(
+        crossing_source,
+        selection,
+        path=crossing_mezzanine,
+        retrack={"Partner"},
+        existing=both_tracks,
+    )
+
+    assert [track.label for track in again] == ["Bearded", "Partner"]
+
+
+def test_a_kept_faces_box_is_not_checked(tracker, crossing_source, crossing_mezzanine):
+    """
+    Its box cannot have gone bad since it was tracked, and checking it would
+    only create a way for an untouched face to fail a job.
+    """
+    good = tracker.track_selection(
+        crossing_source,
+        a_selection(crossing_source, Face(label="Bearded", seeds=[Seed(frame=0, box=LEFT_OFFICER)])),
+        path=crossing_mezzanine,
+    )
+
+    # The same face, but its box now points at empty sky.
+    edited = a_selection(
+        crossing_source,
+        Face(label="Bearded", seeds=[Seed(frame=0, box=SKY)]),
+        Face(label="Partner", seeds=[Seed(frame=0, box=RIGHT_OFFICER)]),
+    )
+
+    tracks = tracker.track_selection(
+        crossing_source,
+        edited,
+        path=crossing_mezzanine,
+        retrack={"Partner"},
+        existing=good,
+    )
+
+    assert tracks[0] is good[0]
+
+
+def test_a_face_that_is_neither_tracked_nor_kept_is_refused(
+    tracker, crossing_source, crossing_mezzanine
+):
+    """
+    A selection has to come back whole. Returning two tracks for three faces
+    would quietly drop someone from the composite.
+    """
+    selection = a_selection(crossing_source, *both_officers())
+
+    with pytest.raises(ValueError, match="no existing track"):
+        tracker.track_selection(
+            crossing_source, selection, path=crossing_mezzanine, retrack={"Partner"}
+        )
+
+
+def test_each_face_is_announced_as_it_starts(
+    tracker, crossing_source, crossing_mezzanine
+):
+    """
+    So the page can say "Tracking Partner, 2 of 2" rather than only moving a
+    bar for the minutes a multi-face job takes.
+    """
+    selection = a_selection(crossing_source, *both_officers())
+    announced = []
+
+    tracker.track_selection(
+        crossing_source,
+        selection,
+        path=crossing_mezzanine,
+        on_face=lambda label, position, count: announced.append((label, position, count)),
+    )
+
+    assert announced == [("Bearded", 1, 2), ("Partner", 2, 2)]
+
+
+def test_the_count_announced_is_what_is_being_tracked_not_the_whole_selection(
+    tracker, crossing_source, crossing_mezzanine, both_tracks
+):
+    """"1 of 1" when re-tracking one of three, or the bar lies about the work left."""
+    selection = a_selection(crossing_source, *both_officers())
+    announced = []
+
+    tracker.track_selection(
+        crossing_source,
+        selection,
+        path=crossing_mezzanine,
+        retrack={"Partner"},
+        existing=both_tracks,
+        on_face=lambda label, position, count: announced.append((label, position, count)),
+    )
+
+    assert announced == [("Partner", 1, 1)]
+
+
+def test_progress_covers_only_the_faces_being_tracked(
+    tracker, crossing_source, crossing_mezzanine, both_tracks
+):
+    selection = a_selection(crossing_source, *both_officers())
+    seen = []
+
+    tracker.track_selection(
+        crossing_source,
+        selection,
+        path=crossing_mezzanine,
+        retrack={"Partner"},
+        existing=both_tracks,
+        on_progress=lambda done, total: seen.append((done, total)),
+    )
+
+    assert seen[-1] == (crossing_source.frame_count, crossing_source.frame_count)
+
+
+def test_retracking_nothing_returns_what_was_handed_in(
+    tracker, crossing_source, crossing_mezzanine, both_tracks
+):
+    """
+    Nothing to do is not an error. A caller re-running after an edit that
+    turned out to change nothing should get its tracks back, not a job.
+    """
+    selection = a_selection(crossing_source, *both_officers())
+
+    again = tracker.track_selection(
+        crossing_source,
+        selection,
+        path=crossing_mezzanine,
+        retrack=set(),
+        existing=both_tracks,
+    )
+
+    assert again == both_tracks
+
+
 # --- WHEN THE LENGTHS DISAGREE ---
 
 
