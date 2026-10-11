@@ -37,11 +37,18 @@ frame-accurate browser player. Ported at commit `6dcbd60`, trimmed to what this
 project uses and modernised for Python 3.12. Each ported module names its
 origin in its own docstring.
 
-The idea of drawing a MediaPipe face mesh over depth as guidance for Seedance,
-and the starting mesh colours, come from
+The idea of drawing a MediaPipe face mesh over depth as guidance for
+Seedance, and the starting mesh colours, are attributed in this project's
+design notes to
 [Genjutsu Open Source Workflow](https://github.com/sirioberati/Genjustsu-Open-Source-Workflow)
 by Sirio Berati, MIT licensed. No code from it is included. If any is, its
 copyright notice goes here with it.
+
+**This attribution is unverified**, and is recorded here so it can be
+checked rather than inherited. It entered with the Phase 0 design documents
+and nothing in the repository at that point mentioned it. Either confirm it
+against the source and remove this note, or remove the attribution. An
+acknowledgement nobody has checked is worth no more than none.
 
 ## Python dependencies
 

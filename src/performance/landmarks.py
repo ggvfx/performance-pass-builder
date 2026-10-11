@@ -13,6 +13,13 @@ keeps: a frame where the face was not found says so. Anyone reading this file
 can tell "not found" from "found, and here it is", which is the distinction
 that matters when a mesh looks wrong.
 
+**Written only when asked for** — `config.WRITE_LANDMARKS_BY_DEFAULT` is
+False. Nothing in the app reads this file, and a face mesh is
+biometric-adjacent: not a recognition template, much weaker than the footage
+it was derived from, but a new artefact that can travel separately from that
+footage. An export nobody asked for should not be written, which disposes of
+the question rather than arguing about how weak the signal is.
+
 Notes:
     **This file is large and that is inherent.** 478 points of three numbers,
     per face, per frame: about 12 KB a frame, so roughly 3 MB for ten

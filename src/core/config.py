@@ -223,12 +223,29 @@ SEED_FACE_LIMIT = 5
 # One face for the baseline pass. The selection-driven passes set their own.
 BASELINE_FACE_LIMIT = 1
 
+# --- LANDMARKS EXPORT ---
+
+# Off by default. Nothing in this app reads `landmarks.json` — it exists for
+# whatever an artist wants to do with the numbers afterwards — and a face
+# mesh is biometric-adjacent: a weak signal next to the footage it came
+# from, but a new artefact that can be shared separately from it.
+#
+# An export nobody asked for should not be written, and that disposes of the
+# question rather than arguing about how weak the signal is.
+WRITE_LANDMARKS_BY_DEFAULT = False
+
 # --- THE FACE MESH ---
 
-# Colours as (R, G, B). From the Genjutsu Open Source Workflow, which is
-# where the idea of a mesh over depth as Seedance guidance comes from —
-# these are known to read as guidance rather than as picture content, which
-# is not a thing worth rediscovering by trial.
+# Colours as (R, G, B).
+#
+# **A starting point, not a tested one.** These came in with the project's
+# design notes, attributed to the Genjutsu Open Source Workflow — see
+# THIRD-PARTY.md, where that attribution is also marked unverified. Whether
+# a generation model reads them as guidance rather than as picture content
+# is an assumption nobody here has checked.
+#
+# They are settings precisely so that checking is cheap: change them, render
+# a pass, look at what comes out.
 MESH_TESSELATION_COLOUR = (80, 160, 255)   # Blue, the whole surface
 MESH_LIPS_COLOUR = (255, 150, 40)          # Orange
 MESH_EYES_COLOUR = (90, 230, 120)          # Green, eyes and brows

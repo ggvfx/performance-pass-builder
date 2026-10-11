@@ -21,6 +21,7 @@ from src.media.frames import (
     RGB,
     RGBA,
     FrameReader,
+    NotAllIntra,
     FrameWriter,
     frame_size_bytes,
     frames_backwards,
@@ -248,6 +249,36 @@ def test_alpha_frames_through_a_codec_that_cannot_hold_them_is_refused(toolchain
 def test_a_pixel_format_knows_whether_it_has_alpha():
     assert RGBA.carries_alpha is True
     assert RGB.carries_alpha is False
+
+
+@needs_ffmpeg
+def test_reading_backwards_refuses_a_file_it_cannot_seek_into(toolchain, probe, clips):
+    """
+    The sharpest edge in the tracking pass, now a locked door rather than a
+    comment. Handing over the original source instead of the prepared
+    mezzanine is an easy mistake, and its symptom is not an error — it is
+    landmarks attributed to the wrong frames, which nothing downstream can
+    detect.
+    """
+    source = probe.probe(clips["film24"])
+
+    with pytest.raises(NotAllIntra, match="mezzanine"):
+        next(iter(frames_backwards(toolchain, source, 10)))
+
+
+@needs_ffmpeg
+def test_the_check_can_be_skipped_for_a_file_already_known_to_be_intra(toolchain, intra):
+    """
+    It costs a demux of the first second. A caller reading several ranges
+    out of the same mezzanine should not pay it each time.
+    """
+    source, path = intra
+
+    seen = list(
+        frames_backwards(toolchain, source, 5, path=path, check_intra=False)
+    )
+
+    assert len(seen) == 6
 
 
 # --- BACKWARDS ---

@@ -52,6 +52,13 @@ def suggested_output_dir(source_path: Path) -> Path:
 # --- PROBE ---
 
 
+# How many frames `is_all_intra` looks at. Enough that a long-GOP file is
+# certain to show a non-keyframe — a GOP is typically 12 to 250 frames, and
+# the first frame of any file is a keyframe either way — without demuxing a
+# two-minute source to answer a question the first second settles.
+INTRA_SAMPLE = 60
+
+
 class SourceProbe:
     """
     Reads technical metadata from source files.
@@ -196,6 +203,65 @@ class SourceProbe:
         return source
 
     # --- PARSING HELPERS ---
+
+    # --- SEEKABILITY ---
+
+    def is_all_intra(self, source_path: Path, sample: int = INTRA_SAMPLE) -> bool:
+        """
+        Whether every frame in a file is a keyframe.
+
+        Args:
+            source_path: The file to check.
+            sample: How many frames to look at. The first few settle it in
+                practice and reading them all would cost a demux of the
+                whole file.
+
+        Returns:
+            True when every sampled frame is a keyframe.
+
+        Raises:
+            RuntimeError: ffprobe could not read the file.
+
+        Notes:
+            **This is what makes seeking safe.** `-ss` before `-i` lands on
+            the nearest keyframe at or before the time asked for: exact when
+            every frame is one, and quietly wrong otherwise. A backward
+            track against long-GOP video would attribute every landmark to
+            the wrong frame with nothing downstream able to tell.
+
+            A sample rather than the whole file, and the asymmetry is the
+            point: any non-keyframe in the first few proves the file is not
+            all-intra, which is the mistake worth catching — handing over
+            the original h264 source instead of the mezzanine. A file that
+            passes could in principle turn long-GOP later, which no cheap
+            check would catch either.
+        """
+        result = self.toolchain.run_ffprobe([
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-read_intervals", f"%+#{sample}",
+            "-show_entries", "frame=key_frame",
+            "-of", "csv=p=0",
+            str(source_path),
+        ])
+
+        if result.returncode != 0:
+            raise RuntimeError(f"Could not read the frame types of {source_path.name}")
+
+        # ffprobe's csv writer puts a trailing comma after a single field, so
+        # every line arrives as "1," rather than "1". Taking the first field
+        # rather than the whole line is what makes this read the flag and not
+        # the formatting.
+        flags = [
+            line.split(",")[0].strip()
+            for line in result.stdout.splitlines()
+            if line.strip()
+        ]
+
+        if not flags:
+            raise RuntimeError(f"{source_path.name} reported no frames to check")
+
+        return all(flag == "1" for flag in flags)
 
     @staticmethod
     def _parse_rate(rate: str | None, source_path: Path) -> tuple[int, int]:

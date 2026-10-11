@@ -246,9 +246,10 @@ def test_a_layer_is_a_generator_rather_than_a_list():
 
 def test_the_features_are_told_apart_by_colour():
     """
-    Blue tessellation, orange lips, green eyes — from the Genjutsu workflow,
-    which is known to read as guidance to Seedance rather than as picture
-    content. If they were all one colour the mesh would be a net.
+    Blue tessellation, orange lips, green eyes. Whether those particular
+    colours help a generation model is untested — what this checks is only
+    that the features are told apart at all. If they were one colour the
+    mesh would be a net.
     """
     assert config.MESH_TESSELATION_COLOUR != config.MESH_LIPS_COLOUR
     assert config.MESH_LIPS_COLOUR != config.MESH_EYES_COLOUR

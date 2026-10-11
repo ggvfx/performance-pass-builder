@@ -399,8 +399,9 @@ Still deferred:
   seam exists, and the likeliest thing to be built on it. SAM 2.1 is
   Apache-2.0 and takes box prompts, which fits the selection step already
   planned. **None of it is designed.**
-- **Vocal isolation and pitch shifting** — the Genjutsu workflow pitches
-  vocals up three semitones before generation. Not needed to prove the pass.
+- **Vocal isolation and pitch shifting** — the project notes say the
+  Genjutsu workflow pitches vocals up three semitones before generation.
+  Unverified, like the mesh colours. Not needed to prove the pass.
 - **Submitting to a generation model** — the tool produces passes. Sending
   them is the artist's choice of platform.
 - **Blendshapes and head pose as curves** — MediaPipe can return both.

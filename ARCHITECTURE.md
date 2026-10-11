@@ -300,9 +300,12 @@ Raw jitter is rendered as shimmer by a generation model.
 **the face layer: its own picture with transparency, not a drawing on top of
 depth.** That is what lets the mesh be output alone, sit over any other layer,
 or be left out of a composite entirely without re-tracking anything. Line
-widths scale with picture height. Colours and widths are config, starting from
-the Genjutsu workflow's blue tessellation, orange lips and green eyes, which
-is known to read as guidance to Seedance.
+widths scale with picture height. Colours and widths are config. They start from
+blue tessellation, orange lips and green eyes, attributed in this project's
+notes to the Genjutsu workflow — **an unverified starting point, not a
+tested one.** Whether a generation model reads these as guidance rather than
+as picture content has never been checked here, which is one of the things
+the 3.8 checkpoint is for.
 
 **All faces render to one layer**, not one layer each: a three-person shot
 should not fill the stack with near-identical rows, and per-face visibility
@@ -621,7 +624,7 @@ Decided before the task they affect, not now.
 1. **Output resolution above 1080p.** Fal returns depth at 1080p at most.
    Either the output is written at the depth's resolution, or the depth is
    scaled up. Seedance takes 1080p either way. *Affects Phase 4.*
-2. **Default colour map.** Grayscale, or a colour map. Genjutsu sent Seedance
+2. **Default colour map.** Grayscale, or a colour map. The project notes say Genjutsu sent Seedance
    coloured depth. Cheap to try both now that the map is the last step.
    *Affects Phase 4.*
 3. **Default depth model.** VDA-Small is Apache-2.0; Base and Large are

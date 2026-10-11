@@ -210,3 +210,52 @@ def test_free_space_is_only_reported_when_there_is_somewhere_to_measure(probe, c
     """None until the user picks an output directory, which is the state on launch."""
     assert probe.inspect(clips["ntsc24"]).free_gb is None
     assert probe.inspect(clips["ntsc24"], output_dir=tmp_path).free_gb > 0
+
+
+# --- SEEKABILITY ---
+
+
+@needs_ffmpeg
+def test_ordinary_video_is_not_all_intra(probe, clips):
+    """
+    Long-GOP h264 — what comes off a camera, and what must never be seeked
+    into. One B or P frame in the sample settles it.
+    """
+    assert probe.is_all_intra(clips["film24"]) is False
+
+
+@needs_ffmpeg
+def test_the_mezzanine_is_all_intra(probe, clips, tmp_path):
+    """
+    The whole reason the mezzanine exists. If this were ever False, backward
+    tracking would refuse to run at all.
+    """
+    from src.media.mezzanine import MezzanineBuilder
+
+    source = probe.probe(clips["film24"])
+    mezzanine = MezzanineBuilder(probe.toolchain).build(source, tmp_path / "m.mov")
+
+    assert probe.is_all_intra(mezzanine) is True
+
+
+@needs_ffmpeg
+def test_the_flag_is_read_rather_than_the_formatting(probe, clips, tmp_path):
+    """
+    The bug this guards. ffprobe's csv writer puts a trailing comma after a
+    single field, so every line arrives as "1," rather than "1" — and a
+    check comparing the whole line called the mezzanine long-GOP, which
+    would have refused the one file that is safe to seek into.
+    """
+    from src.media.mezzanine import MezzanineBuilder
+
+    source = probe.probe(clips["film24"])
+    mezzanine = MezzanineBuilder(probe.toolchain).build(source, tmp_path / "m.mov")
+
+    raw = probe.toolchain.run_ffprobe([
+        "-v", "error", "-select_streams", "v:0", "-read_intervals", "%+#4",
+        "-show_entries", "frame=key_frame", "-of", "csv=p=0", str(mezzanine),
+    ])
+    first = raw.stdout.splitlines()[0]
+
+    print(f"ffprobe writes {first!r}")
+    assert probe.is_all_intra(mezzanine) is True

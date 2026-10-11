@@ -263,8 +263,10 @@ a small face in a wide shot. Those are what 3.4 onward actually need.
       is what lets the mesh be output alone, reordered, or left out of a
       composite without re-tracking
       *`src/performance/mesh.py`. Blue tessellation, green eyes and brows,
-      orange lips, white irises — the Genjutsu colours. Looked at over the
-      plate, not just asserted. **Found a real bug on the way:** the base
+      orange lips, white irises — the colours the design notes started from,
+      whose provenance is unverified (THIRD-PARTY.md) and whose effect on a
+      generation model is untested. Looked at over the plate, not just
+      asserted. **Found a real bug on the way:** the base
       `FrameWriter` forced `yuv420p` whatever arrived, so RGBA went in and
       an opaque video came out — a mesh layer written that way composites
       as a solid rectangle. The old alpha test could not catch it because
@@ -473,10 +475,11 @@ Still deferred:
   and takes box prompts, which fits the selection step already planned. Fal
   also hosts SAM; which version needs checking before relying on it. **None of
   it is designed.**
-- **Vocal isolation and pitch shifting.** The Genjutsu workflow isolates
-  vocals with Demucs and pitches them up three semitones before generation.
-  Not needed to prove the pass; worth testing later whether it changes
-  Seedance's output at all.
+- **Vocal isolation and pitch shifting.** The project notes say the Genjutsu
+  workflow isolates vocals with Demucs and pitches them up three semitones
+  before generation — **unverified**, like the mesh colours; see
+  THIRD-PARTY.md. Not needed to prove the pass; worth checking the claim
+  before building anything on it.
 - **Submitting to a generation model.** The artist's choice of platform.
 - **Blendshapes and head pose** — MediaPipe returns both if asked.
 - **Freehand face selection.** A box only tells the tracker where to look, and

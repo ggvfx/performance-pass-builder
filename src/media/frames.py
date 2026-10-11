@@ -291,6 +291,7 @@ def frames_backwards(
     first_frame: int = 0,
     path: Path | None = None,
     budget_bytes: int | None = None,
+    check_intra: bool = True,
 ):
     """
     Yields (frame index, frame) from `last_frame` down to `first_frame`.
@@ -304,11 +305,15 @@ def frames_backwards(
             is right only when the source is itself all-intra.
         budget_bytes: Override the window size. Defaults to
             `config.BACKWARD_WINDOW_BYTES`.
+        check_intra: Verify the file can be seeked in before reading it.
+            Only turn this off for a file already known to be all-intra,
+            and never to make an error go away.
 
     Raises:
         ValueError: The range is empty or outside the source.
-        RuntimeError: A window came back short, which means the file is not
-            all-intra and the seek landed somewhere else.
+        NotAllIntra: The file cannot be seeked in exactly.
+        RuntimeError: A window came back short, which means a seek landed
+            somewhere unexpected.
 
     Notes:
         **A decoder only goes forwards**, so going backwards means holding
@@ -320,8 +325,10 @@ def frames_backwards(
         — the same ceiling on a two-minute source as on a two-second one.
 
         The cost is one seek per window, which is why this needs the
-        mezzanine. On long-GOP video a seek would land on the wrong frame and
-        every landmark after it would be attributed to the wrong picture.
+        mezzanine — and why it now checks rather than trusting the caller.
+        Being handed the original source instead of the prepared copy is an
+        easy mistake, and its symptom is not an error but a pass that is
+        subtly wrong in a way nothing downstream can detect.
     """
     if last_frame < first_frame:
         raise ValueError(f"backward range {first_frame}..{last_frame} is empty")
@@ -331,6 +338,18 @@ def frames_backwards(
             f"backward range {first_frame}..{last_frame} is outside the "
             f"source's {source.frame_count} frames"
         )
+
+    reading = path or Path(source.path)
+
+    if check_intra:
+        from src.media.probe import SourceProbe
+
+        if not SourceProbe(toolchain).is_all_intra(reading):
+            raise NotAllIntra(
+                f"{reading.name} is not all-intra, so seeking into it lands on the "
+                f"wrong frame. Reading it backwards would attribute every landmark "
+                f"to the wrong picture. Pass the prepared mezzanine instead."
+            )
 
     budget = budget_bytes if budget_bytes is not None else config.BACKWARD_WINDOW_BYTES
     window = max(1, budget // frame_size_bytes(source.width, source.height))
@@ -368,6 +387,16 @@ def frames_backwards(
 # anything else drops it without complaint, which is how a mesh layer ends
 # up compositing as a solid rectangle.
 ALPHA_CODECS = {"qtrle", "png", "prores_ks"}
+
+
+class NotAllIntra(ValueError):
+    """
+    A file that cannot be seeked into exactly was handed to something that
+    seeks.
+
+    Its own type because the fix is specific and always the same: use the
+    prepared mezzanine, not the original source.
+    """
 
 
 class FrameWriter:

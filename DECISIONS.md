@@ -13,6 +13,45 @@ again.
 
 ---
 
+## Reviewed with you, 2026-10-11
+
+- [x] **A track can transfer to the wrong face (3.10).** Agreed: require a
+      recovered face to overlap where it was last, with a give-up rule after
+      N missing frames as a backstop, N being a setting. Not yet built.
+- [x] **`landmarks.json` stays JSON.** `.npz` would be a tenth of the size
+      and Nuke cannot open one without a script, which costs more than the
+      megabytes save. If a long job ever hurts, write both rather than swap
+      the interface.
+- [x] **Landmarks are now opt-in, off by default.** Nothing in the app reads
+      the file, and a face mesh is biometric-adjacent — a weak signal beside
+      the footage it came from, but a new artefact that can travel
+      separately. An export nobody asked for should not be written.
+- [x] **Seeking is enforced, not documented.** `SourceProbe.is_all_intra`
+      samples the first 60 frames' keyframe flags, and `frames_backwards`
+      refuses anything else with `NotAllIntra`. **A bug while writing it:**
+      ffprobe's csv writer appends a trailing comma to a single field, so
+      every flag read as `"1,"` and the check called the mezzanine long-GOP
+      — it would have refused the one file that is safe. Caught by running
+      it against a real mezzanine rather than trusting it.
+- [x] **Confidence thresholds stay at 0.5 until the 3.8 checkpoint**, where
+      "too strict" and "inventing faces" are visible rather than arguable.
+
+- [ ] **I asserted the mesh colours were "known to read as guidance to
+      Seedance", and I cannot support that.** It is not in your repo — the
+      initial commit was a README stub and a LICENSE — so it entered with
+      the Phase 0 design documents I wrote. Whether you mentioned Genjutsu
+      in conversation I cannot verify; that part of the session is
+      summarised. Either way the *"known to read as guidance"* part was an
+      assumption written as established fact, and it had reached three
+      documents, a config comment and a test docstring.
+
+      All of them now say it is an untested starting point, and
+      THIRD-PARTY.md marks the attribution itself unverified with
+      instructions to confirm or remove it. The same treatment went to the
+      "pitches vocals up three semitones" claim from the same source.
+      **Worth your eye: do you recognise Genjutsu as something you pointed
+      me at?** If not, the attribution should go entirely.
+
 ## Phase 3 — cleanup after 3.9
 
 - [ ] **A segment reported the wrong seed frame.** Found by reading
