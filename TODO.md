@@ -334,10 +334,18 @@ top of an unfinished one.
       decodes cleanly, its container is textbook with the metadata at the
       front, and the transport arithmetic is minicut's unchanged. First
       thing to check at 3.13.
-- [ ] **3.13** Draw a box, name the face, remove it. **Adding a seed to an
+- [x] **3.13** Draw a box, name the face, remove it. **Adding a seed to an
       existing face has to be the more obvious action** — a returning person
       given a new face gets a new colour, and every prompt naming the old one
       breaks. That is the one way the identity scheme fails
+      *`faces.js`. Drag on the picture to add a face; each face then carries
+      its own "Mark again here" beside its name, so marking an existing
+      person is the near action and adding a face is the far one. Names are
+      typed in place, with duplicates and blanks refused because a label
+      keys the report, the layer and the landmarks file. Seeds show as
+      chips that jump to their frame. Swatches come from the server's own
+      palette rather than a copy, so a swatch cannot disagree with the
+      rendered mesh. **Awaiting your look before 3.14 builds on it.***
 - [ ] **3.14** `selection.json` written and read back, so a selection
       survives closing the app and is the whole interface between the picker
       and the pipeline

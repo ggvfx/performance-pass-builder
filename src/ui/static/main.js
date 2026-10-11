@@ -13,6 +13,7 @@
  */
 
 import { loadEnvironment } from "./environment.js";
+import { showFaces, wireFaces } from "./faces.js";
 import { wirePerformance } from "./performance.js";
 import { wirePlayer } from "./player.js";
 import { openPicker } from "./picker.js";
@@ -25,6 +26,8 @@ document.addEventListener("DOMContentLoaded", () => {
     wireSteps();
     wirePerformance();
     wirePlayer();
+    wireFaces();
+    showFaces();
 
     // The strip on the workflow tab is the answer to "can I start?", so it is
     // filled on load rather than when Setup is first opened.

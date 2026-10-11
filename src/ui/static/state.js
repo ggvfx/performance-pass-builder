@@ -22,6 +22,13 @@ export const state = {
     // count against rather than defaulting to something plausible.
     source: null,
 
+    // The chosen faces: a label and a list of seeds each, exactly the shape
+    // selection.json wants. Boxes are fractions of the picture, so the page
+    // owns no arithmetic about the source's real size.
+    faces: [],
+    chosenFace: null,          // Which row is highlighted
+    drawingFor: null,          // null draws a new face; an index marks that one again
+
     // Where each step has got to: todo, running or done. The strip reads this,
     // and it is the one place that knows whether a pass has been run — a
     // layer in the stack is only usable once its step says done.

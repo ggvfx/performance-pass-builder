@@ -642,3 +642,115 @@ summary .summary { margin: 0; }
     margin-top: 10px;
     accent-color: var(--ok);
 }
+
+/* ===== DRAWING ON THE PICTURE ===== */
+
+/* The overlay has to sit exactly over the video, so the two share a box
+   that is sized by the video itself rather than by a guess */
+.picture {
+    position: relative;
+    line-height: 0;
+}
+
+.overlay {
+    position: absolute;
+    inset: 0;
+    cursor: default;
+}
+
+/* Armed means the next drag draws a box. The crosshair is the only thing
+   telling you the click will do something, so it matters */
+.overlay.armed {
+    cursor: crosshair;
+    box-shadow: inset 0 0 0 2px var(--ok);
+}
+
+.drawing-hint {
+    margin-top: 8px;
+    color: var(--ok);
+}
+
+.seed-box {
+    position: absolute;
+    border: 2px solid var(--ok);
+    border-radius: 2px;
+    pointer-events: none;
+}
+
+.seed-box.drawing {
+    border-style: dashed;
+}
+
+.seed-tag {
+    position: absolute;
+    top: -20px;
+    left: -2px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    color: #000;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    white-space: nowrap;
+}
+
+/* ===== THE FACE LIST ===== */
+
+.face.selectable { cursor: pointer; }
+.face.chosen { background: rgba(255, 255, 255, 0.04); }
+
+/* Typed over in place. A face called "Face 2" is no use in a prompt, so
+   renaming has to be the obvious next thing after drawing one */
+.face-name {
+    width: 110px;
+    padding: 2px 6px;
+    background: transparent;
+    color: var(--text);
+    border: 1px solid transparent;
+    border-radius: 3px;
+    font: inherit;
+    font-weight: 600;
+}
+
+.face-name:hover { border-color: var(--border); }
+.face-name:focus { border-color: var(--ok); outline: none; }
+
+.seed-chips {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-right: 10px;
+}
+
+.chip-pair {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.chip, .chip-remove {
+    padding: 1px 6px;
+    background: transparent;
+    color: var(--text-dim);
+    border: none;
+    font: inherit;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+}
+
+.chip:hover { color: var(--text); }
+.chip-remove:hover { color: var(--blocked); }
+
+.face-actions {
+    display: inline-flex;
+    gap: 6px;
+}
+
+.face-actions button {
+    padding: 2px 8px;
+    font-size: 12px;
+}
+
+.face-actions .danger:hover { color: var(--blocked); }

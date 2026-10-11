@@ -113,6 +113,23 @@ class JobState(BaseModel):
     result: dict | None = None
 
 
+# --- THE PALETTE ---
+
+
+@router.get("/api/mesh-palette")
+def mesh_palette() -> list[list[int]]:
+    """
+    The tessellation hues, in the order faces are assigned them.
+
+    Notes:
+        Served rather than duplicated in the front end. The page draws a
+        swatch beside each face so you know which colour to name in a
+        prompt, and a swatch that disagreed with the rendered mesh would be
+        worse than no swatch at all.
+    """
+    return [list(hue) for hue in config.MESH_IDENTITY_PALETTE]
+
+
 # --- INSPECT ---
 
 

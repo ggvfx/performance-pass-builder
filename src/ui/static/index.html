@@ -211,7 +211,11 @@
                 </p>
 
                 <div id="player-shell" hidden>
-                    <video id="proxy-player" class="proxy" preload="auto"></video>
+                    <div class="picture">
+                        <video id="proxy-player" class="proxy" preload="auto"></video>
+                        <div id="draw-overlay" class="overlay"></div>
+                    </div>
+                    <p id="draw-hint" class="hint drawing-hint" hidden></p>
 
                     <div class="transport">
                         <button class="secondary" data-step-frames="-10" disabled>&laquo; 10</button>
@@ -233,8 +237,11 @@
 
                 <div class="action-row">
                     <button id="face-add" disabled>Add a face</button>
-                    <button id="face-seed" class="secondary" disabled>Add a seed here</button>
-                    <span class="status">Drawing arrives at task 3.13.</span>
+                    <span class="status">
+                        Then mark that face again wherever its track breaks &mdash; the
+                        button beside its name, not a new face. A returning person given
+                        a new face gets a new colour.
+                    </span>
                 </div>
             </section>
 
@@ -243,7 +250,7 @@
                 <ul class="faces" id="face-list">
                     <li class="face">
                         <span class="face-label">No faces yet</span>
-                        <span class="face-seeds">Track to see what was found.</span>
+                        <span class="face-seeds">Draw a box round someone to add one.</span>
                     </li>
                 </ul>
             </section>
@@ -260,6 +267,7 @@
                     <span id="faces-status" class="status">Inspect the footage first.</span>
                 </div>
                 <div id="faces-progress" class="progress" hidden><div class="progress-bar"></div></div>
+                <ul class="faces" id="track-report"></ul>
                 <video id="faces-preview" class="preview" controls loop hidden></video>
                 <p class="hint">
                     One face, whole frame, no seeds yet &mdash; enough to look at the mesh

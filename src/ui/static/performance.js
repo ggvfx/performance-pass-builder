@@ -206,9 +206,18 @@ async function track() {
     }
 }
 
-/** Fills the face list from the tracking report. */
+/**
+ * Shows what the track found.
+ *
+ * Notes:
+ *     In the Track card, not the Faces list — the list is the *selection*,
+ *     which is a different thing from the outcome and is owned by
+ *     `faces.js`. They become one list at 3.15, when tracking is driven by
+ *     the selection instead of running a baseline that corresponds to
+ *     nothing in it.
+ */
 function showReport(report, colours) {
-    const list = document.getElementById("face-list");
+    const list = document.getElementById("track-report");
     list.replaceChildren();
 
     for (const face of report.faces) {

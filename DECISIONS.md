@@ -26,6 +26,43 @@ decisions getting lost while I worked unattended, not to become a backlog.
 
 ---
 
+## Phase 3 — choosing faces (3.13)
+
+- [ ] **"Mark again here" lives on each face's row; "Add a face" is one
+      button above the list.** The near action is marking someone who
+      already exists, because that is what keeps their colour — and a
+      returning person given a new face gets a new colour and breaks every
+      prompt naming the old one.
+- [ ] **Names are typed in place and refuse duplicates and blanks.** A
+      label keys the tracking report, the mesh layer and `landmarks.json`,
+      so two faces sharing one would silently lose a person. A new face is
+      created as "Face 2" with the name selected, because "Face 2" is no
+      use in a prompt.
+- [ ] **Marking a face again on a frame it is already marked on replaces
+      that seed rather than adding a second.** Drawing twice on one frame
+      is a correction, and the model refuses duplicate frames anyway —
+      better handled here than rejected later.
+- [ ] **Removing a face's last seed removes the face.** A face with nothing
+      to track from is not a thing the model will accept.
+- [ ] **The swatch colours come from `/api/mesh-palette`** rather than a
+      copy in the front end. The swatch is what you read off when writing a
+      prompt, so one that disagreed with the rendered mesh would be worse
+      than none.
+- [ ] **Two bugs found by using it, one of which hid the other.**
+      `wireFaces` threw on a `getElementById` that returned null — a button
+      I had removed from the markup but left a handler for — and the
+      exception aborted the rest of the function, including the palette
+      fetch on its last line. The only visible symptom was every face
+      rendering blue. The second: renaming a face updated the data without
+      repainting, so the tag on the box kept the old name.
+- [ ] **Still not seen with a picture behind it.** The browser's video
+      decoding has been dead for this whole session, so the boxes were
+      verified over a black rectangle — geometry, colours, names and the
+      guards all check out, but nobody has drawn a box round an actual
+      face yet. **That is the first thing to do.**
+
+---
+
 ## Phase 3 — the review player (3.12)
 
 - [ ] **`/api/proxy` derives the file from the source rather than being

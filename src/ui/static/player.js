@@ -103,6 +103,10 @@ export function openProxy(source) {
 
     document.getElementById("player-shell").hidden = false;
     document.getElementById("player-missing").hidden = true;
+
+    // Nothing can be drawn on until there is a frame to draw on.
+    document.getElementById("face-add").disabled = false;
+
     showPosition();
 }
 
@@ -110,6 +114,7 @@ export function openProxy(source) {
 export function closeProxy(message) {
     state.source = null;
     document.getElementById("player-shell").hidden = true;
+    document.getElementById("face-add").disabled = true;
 
     const missing = document.getElementById("player-missing");
     missing.textContent = message;
