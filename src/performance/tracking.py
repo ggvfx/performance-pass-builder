@@ -55,11 +55,13 @@ from src.core.ffmpeg_tools import MediaToolchain
 from src.core.models import (
     LANDMARK_COUNT,
     NOT_SEEDED,
+    Face,
     FaceTrack,
     FaceTrackingReport,
     NormalisedBox,
     Seed,
     SegmentReport,
+    Selection,
     SourceInfo,
     TrackingReport,
 )
@@ -94,6 +96,98 @@ class NoFaceInSeed(ValueError):
     another frame, and the message should say that rather than read like a
     bug.
     """
+
+
+class _Fill:
+    """
+    One face's arrays while they are being filled, and where it was last.
+
+    Several segments write into the same three arrays — a backward run and
+    one forward run per seed — so the arrays, the last known position and
+    the region to search next belong together rather than being threaded
+    through every call as arguments.
+
+    Private because it is scaffolding for building a `FaceTrack`, not
+    something to hand anybody. What comes out is the track.
+    """
+
+    def __init__(self, source: SourceInfo, search_padding: float | None):
+        self.source = source
+        self.search_padding = search_padding
+
+        # NaN throughout, so any frame no segment reaches is a gap by
+        # default. Zeros would make a missed frame look like a face
+        # collapsed into the top-left corner.
+        self.landmarks = np.full(
+            (source.frame_count, LANDMARK_COUNT, 3), np.nan, dtype=np.float32
+        )
+        self.tracked = np.zeros(source.frame_count, dtype=bool)
+        self.seeded_by = np.full(source.frame_count, NOT_SEEDED, dtype=np.int16)
+
+        self.following: tuple[float, float] | None = None
+        self.region: NormalisedBox | None = None
+
+    def aim_at(self, box: NormalisedBox) -> None:
+        """Points the search region at a box, or at the whole frame."""
+        self.region = (
+            None
+            if self.search_padding is None
+            else search_region(
+                box, self.source.width, self.source.height, self.search_padding
+            )
+        )
+
+    def record(self, frame_index: int, points: np.ndarray, seed_index: int) -> None:
+        """Writes one frame's result and remembers where it was."""
+        self.landmarks[frame_index] = points
+        self.tracked[frame_index] = True
+        self.seeded_by[frame_index] = seed_index
+        self.following = centroid(points)
+
+    def look(self, landmarker, mp, frame, clock: int, rate: Fraction, choose):
+        """
+        One frame: crop to the region, detect, map back to the picture, choose.
+
+        Notes:
+            The region moves to whatever was chosen, so the next frame looks
+            where this one found something. When nothing is found it stays
+            put — a blink or a blur recovers, and a face that left and came
+            back elsewhere wants another seed.
+        """
+        crop = (
+            self.region.to_pixels(self.source.width, self.source.height)
+            if self.region is not None
+            else None
+        )
+        picture = frame if crop is None else frame[crop[1] : crop[3], crop[0] : crop[2]]
+
+        found = landmarker.detect_for_video(
+            mp.Image(image_format=mp.ImageFormat.SRGB, data=np.ascontiguousarray(picture)),
+            timestamp_ms(clock, rate),
+        ).face_landmarks
+
+        candidates = [points_to_array(face) for face in found]
+        if crop is not None:
+            candidates = [
+                to_full_frame(points, crop, self.source.width, self.source.height)
+                for points in candidates
+            ]
+
+        chosen = choose(candidates)
+
+        if chosen is not None:
+            self.aim_at(bounding_box(chosen))
+
+        return chosen
+
+    def to_track(self, label: str) -> FaceTrack:
+        """The finished track. Not validated here — the caller does that."""
+        return FaceTrack(
+            label=label,
+            landmarks=self.landmarks,
+            tracked=self.tracked,
+            seeded_by=self.seeded_by,
+        )
 
 
 class FaceTracker:
@@ -222,202 +316,406 @@ class FaceTracker:
         on_progress: "Callable[[int, int], None] | None" = None,
     ) -> FaceTrack:
         """
-        Tracks the face in a seed box, forwards and backwards from its frame.
+        Tracks the face in one seed box, forwards and backwards from its frame.
+
+        The one-seed case of `track_face`, which is the general shape. Kept
+        as its own call because one seed is what most shots need and
+        building a `Face` to ask for it would be ceremony.
 
         Args:
             source: The probed source. Its frame count is the track's length.
             seed: The box, and the frame it was drawn on.
             label: What to call this face.
             path: **The mezzanine.** The backward run seeks, and a seek is
-                only exact on an all-intra file. Passing a long-GOP source
-                here puts landmarks on the wrong frames, silently.
-            seed_index: Which of the face's seeds this is, recorded per frame
-                so the timeline can show where each stretch came from.
+                only exact on an all-intra file.
+            seed_index: Which of the face's seeds this is, recorded per frame.
+            search_padding: How far around the last known position to look.
+                None searches the whole frame — see `track_face`.
+            on_progress: Called with (frames done, frames total).
+
+        Raises:
+            NoFaceInSeed: Nothing was found inside the box on the seed frame.
+            ValueError: The seed is outside the source.
+        """
+        return self.track_face(
+            source,
+            Face(label=label, seeds=[seed]),
+            path=path,
+            first_seed_index=seed_index,
+            search_padding=search_padding,
+            on_progress=on_progress,
+        )
+
+    def track_face(
+        self,
+        source: SourceInfo,
+        face: Face,
+        path: Path | None = None,
+        first_seed_index: int = 0,
+        search_padding: float | None = config.FACE_SEARCH_PADDING,
+        on_progress: "Callable[[int, int], None] | None" = None,
+    ) -> FaceTrack:
+        """
+        Tracks one face from all of its seeds, in segments between them.
+
+        Args:
+            source: The probed source. Its frame count is the track's length.
+            face: The label and its seeds, which the model keeps in frame
+                order with no frame used twice.
+            path: **The mezzanine.** Backward runs seek.
+            first_seed_index: What to call the first seed in `seeded_by`.
+                Only interesting to `track_from_seed`, which may be reporting
+                a seed from the middle of a larger list.
             search_padding: How far around the last known position to look,
-                as a fraction of the face's own size. **None searches the
-                whole frame every time** — what this did before the search
-                box existed, kept so the two can be measured against each
-                other rather than argued about.
+                as a fraction of the face's own size. None searches the whole
+                frame every time.
             on_progress: Called with (frames done, frames total).
 
         Returns:
             A FaceTrack exactly `source.frame_count` long.
 
         Raises:
-            NoFaceInSeed: Nothing was found inside the box on the seed frame.
-            ValueError: The seed is outside the source.
+            NoFaceInSeed: Nothing was found inside the first seed's box.
+            ValueError: A seed is outside the source.
 
         Notes:
-            **Two runs and two landmarkers.** Video mode carries state
-            between frames and demands timestamps that rise, so a backward
-            run cannot share a tracker with a forward one — it is its own
-            landmarker, fed the frames in reverse on its own rising clock.
+            **Re-seeding is the normal way to work, not a recovery path.**
+            Tracking until a face turns away or a wipe crosses it, then
+            marking it again past the break, is how a shot gets done. So the
+            seeds divide the source into segments: backward from the first
+            to frame 0, then forward from each seed to the frame before the
+            next, and from the last to the end.
 
-            The backward run starts *on* the seed frame rather than below it,
-            so it begins from the same known-good detection the forward run
-            did instead of guessing at frame `seed - 1`. That frame's result
-            is discarded; the forward run already owns it.
+            **Each segment is its own landmarker.** Starting fresh at a seed
+            is the whole point of re-seeding — carrying state across one
+            would carry in whatever went wrong before it.
 
-            **Which face is a question of where it was.** Each frame the
-            picture is cropped to a region around the last known position,
-            and only that is searched — so a face wandering into shot is not
-            a candidate at all, because it is not in the picture handed to
-            the model. That is the answer to two faces crossing, and it is
-            cheaper than searching the whole frame as well as safer.
+            **A segment stops at the next seed rather than running on.** It
+            would be simpler to track each seed to the end of the source and
+            keep the parts wanted, and it would cost a full decode per seed.
 
-            While the face is missing the region stays where it was. A blink
-            or a blur recovers; someone who leaves and returns elsewhere does
-            not, and wants another seed. Re-seeding is the normal way to
-            work, not a recovery path.
+            Only the *first* seed can raise. A later one marks a face the
+            artist can see, so if the detector disagrees there, the honest
+            result is a gap in that segment — not the loss of the whole
+            track behind it.
         """
-        import mediapipe as mp
-        from mediapipe.tasks import python as mediapipe_python
-        from mediapipe.tasks.python import vision
+        for seed in face.seeds:
+            if not 0 <= seed.frame < source.frame_count:
+                raise ValueError(
+                    f"{face.label!r} has a seed on frame {seed.frame}, but the "
+                    f"source has {source.frame_count} frames"
+                )
 
-        if not 0 <= seed.frame < source.frame_count:
-            raise ValueError(
-                f"seed is on frame {seed.frame}, but the source has "
-                f"{source.frame_count} frames"
-            )
-
-        frame_count = source.frame_count
-        landmarks = np.full((frame_count, LANDMARK_COUNT, 3), np.nan, dtype=np.float32)
-        tracked = np.zeros(frame_count, dtype=bool)
-        seeded_by = np.full(frame_count, NOT_SEEDED, dtype=np.int16)
-
+        fill = _Fill(source, search_padding)
         rate = Fraction(source.fps_numerator, source.fps_denominator)
-        options = self._options(vision, mediapipe_python, config.SEED_FACE_LIMIT)
-
         done = 0
-
-        def record(frame_index: int, points: np.ndarray) -> None:
-            landmarks[frame_index] = points
-            tracked[frame_index] = True
-            seeded_by[frame_index] = seed_index
 
         def step() -> None:
             nonlocal done
             done += 1
             if on_progress is not None:
-                on_progress(done, frame_count)
+                on_progress(done, source.frame_count)
 
-        # Where to look next. It starts as the seed box, which is what makes
-        # the first detection find the face the artist meant rather than the
-        # most prominent one in the picture.
-        region = self._region_for(seed.box, source, search_padding)
+        first = face.seeds[0]
 
-        def look(landmarker, frame, clock: int, choose) -> np.ndarray | None:
-            """One frame: crop to the region, detect, map back, choose."""
-            nonlocal region
+        # --- FORWARD, SEED BY SEED ---
 
-            crop = (
-                region.to_pixels(source.width, source.height)
-                if region is not None
-                else None
+        for offset, seed in enumerate(face.seeds):
+            index = first_seed_index + offset
+            last = (
+                face.seeds[offset + 1].frame - 1
+                if offset + 1 < len(face.seeds)
+                else source.frame_count - 1
             )
-            picture = frame if crop is None else frame[crop[1] : crop[3], crop[0] : crop[2]]
+            if last < seed.frame:
+                continue  # two seeds on adjacent frames; the later one wins
 
-            found = landmarker.detect_for_video(
-                mp.Image(image_format=mp.ImageFormat.SRGB, data=np.ascontiguousarray(picture)),
-                timestamp_ms(clock, rate),
-            ).face_landmarks
+            self._forward(source, path, fill, seed, index, last, rate, step, offset == 0)
 
-            candidates = [points_to_array(face) for face in found]
-            if crop is not None:
-                candidates = [
-                    to_full_frame(points, crop, source.width, source.height)
-                    for points in candidates
-                ]
+        # --- BACKWARD, FROM THE FIRST SEED ---
 
-            chosen = choose(candidates)
+        if first.frame > 0:
+            self._backward(source, path, fill, first, first_seed_index, rate, step)
 
-            if chosen is not None:
-                region = self._region_for(bounding_box(chosen), source, search_padding)
+        track = fill.to_track(face.label)
+        track.validate_shape()
 
-            return chosen
+        logging.info(
+            f"Tracked {face.label!r} from {len(face.seeds)} seed(s): "
+            f"{int(track.tracked.sum())}/{source.frame_count} frames, "
+            f"{len(track.gaps())} gap(s)"
+        )
+        return track
 
-        # --- FORWARDS, FROM THE SEED ---
+    # --- ONE SEGMENT AT A TIME ---
 
-        following: tuple[float, float] | None = None
+    def _forward(
+        self,
+        source: SourceInfo,
+        path: Path | None,
+        fill: "_Fill",
+        seed: Seed,
+        seed_index: int,
+        last_frame: int,
+        rate: Fraction,
+        step: "Callable[[], None]",
+        may_raise: bool,
+    ) -> None:
+        """
+        One segment: from a seed's frame to `last_frame`, inclusive.
+
+        Args:
+            may_raise: Whether a seed box with nothing in it is fatal. True
+                for the first seed only — see `track_face`.
+        """
+        import mediapipe as mp
+        from mediapipe.tasks import python as mediapipe_python
+        from mediapipe.tasks.python import vision
+
+        options = self._options(vision, mediapipe_python, config.SEED_FACE_LIMIT)
+        fill.aim_at(seed.box)
+        fill.following = None
+
+        wanted = last_frame - seed.frame + 1
 
         with vision.FaceLandmarker.create_from_options(options) as landmarker:
             with FrameReader.for_source(
-                self.toolchain, source, path=path, start_frame=seed.frame
+                self.toolchain, source, path=path, start_frame=seed.frame, max_frames=wanted
             ) as reader:
                 for offset, frame in enumerate(reader):
                     frame_index = seed.frame + offset
-                    if frame_index >= frame_count:
-                        break
 
                     if frame_index == seed.frame:
-                        chosen = look(
-                            landmarker, frame, offset, lambda found: face_in_box(found, seed.box)
+                        chosen = fill.look(
+                            landmarker, mp, frame, offset, rate,
+                            lambda found: face_in_box(found, seed.box),
                         )
-                        if chosen is None:
+                        if chosen is None and may_raise:
                             raise NoFaceInSeed(
                                 f"no face was found inside the box on frame {seed.frame}. "
                                 f"Try drawing the box again, or seeding on another frame."
                             )
                     else:
-                        chosen = look(
-                            landmarker, frame, offset, lambda found: face_nearest(found, following)
+                        chosen = fill.look(
+                            landmarker, mp, frame, offset, rate,
+                            lambda found: face_nearest(found, fill.following),
                         )
 
                     if chosen is not None:
-                        record(frame_index, chosen)
-                        following = centroid(chosen)
+                        fill.record(frame_index, chosen, seed_index)
 
                     step()
 
-        # --- BACKWARDS, FROM THE SEED ---
+    def _backward(
+        self,
+        source: SourceInfo,
+        path: Path | None,
+        fill: "_Fill",
+        seed: Seed,
+        seed_index: int,
+        rate: Fraction,
+        step: "Callable[[], None]",
+    ) -> None:
+        """
+        From the first seed's frame down to frame 0.
 
-        if seed.frame > 0:
-            following = centroid(landmarks[seed.frame])
-            region = self._region_for(
-                bounding_box(landmarks[seed.frame]), source, search_padding
+        Notes:
+            Starts *on* the seed frame rather than below it, so it begins
+            from the same known-good detection the forward run did instead
+            of guessing at frame `seed - 1`. That frame's result is thrown
+            away; the forward run already owns it.
+        """
+        import mediapipe as mp
+        from mediapipe.tasks import python as mediapipe_python
+        from mediapipe.tasks.python import vision
+
+        options = self._options(vision, mediapipe_python, config.SEED_FACE_LIMIT)
+
+        if fill.tracked[seed.frame]:
+            fill.following = centroid(fill.landmarks[seed.frame])
+            fill.aim_at(bounding_box(fill.landmarks[seed.frame]))
+        else:
+            fill.following = None
+            fill.aim_at(seed.box)
+
+        with vision.FaceLandmarker.create_from_options(options) as landmarker:
+            backwards = frames_backwards(
+                self.toolchain, source, last_frame=seed.frame, first_frame=0, path=path
             )
 
-            with vision.FaceLandmarker.create_from_options(options) as landmarker:
-                backwards = frames_backwards(
-                    self.toolchain, source, last_frame=seed.frame, first_frame=0, path=path
+            for clock, (frame_index, frame) in enumerate(backwards):
+                chosen = fill.look(
+                    landmarker, mp, frame, clock, rate,
+                    lambda found: face_nearest(found, fill.following),
                 )
 
-                for clock, (frame_index, frame) in enumerate(backwards):
-                    chosen = look(
-                        landmarker, frame, clock, lambda found: face_nearest(found, following)
-                    )
+                if frame_index == seed.frame:
+                    continue
 
-                    # The seed frame is here only to start this tracker from
-                    # the same known-good detection. The forward run owns it.
-                    if frame_index == seed.frame:
+                if chosen is not None:
+                    fill.record(frame_index, chosen, seed_index)
+
+                step()
+
+    # --- A WHOLE SELECTION ---
+
+    def check_seeds(
+        self, source: SourceInfo, selection: Selection, path: Path | None = None
+    ) -> list[str]:
+        """
+        Whether every seed box actually has a face in it, before tracking any.
+
+        Args:
+            source: The probed source.
+            selection: Every face the artist chose.
+            path: **The mezzanine.** This seeks to each seed frame.
+
+        Returns:
+            One message per bad seed, empty when they are all fine.
+
+        Notes:
+            **A pre-flight, and the reason is time.** Tracking three faces
+            through a two-minute source takes minutes; discovering the third
+            box was drawn on a shoulder at the end of that is a poor way to
+            spend them. One detection per seed answers it in under a second,
+            and the caller can report every bad box at once rather than the
+            first one.
+        """
+        import mediapipe as mp
+        from mediapipe.tasks import python as mediapipe_python
+        from mediapipe.tasks.python import vision
+
+        options = self._options(vision, mediapipe_python, config.SEED_FACE_LIMIT)
+        problems: list[str] = []
+
+        # IMAGE mode, not VIDEO: these frames are scattered through the
+        # source and have nothing to do with each other, so carrying tracker
+        # state between them would be meaningless and the rising-timestamp
+        # rule would be in the way.
+        options.running_mode = vision.RunningMode.IMAGE
+
+        with vision.FaceLandmarker.create_from_options(options) as landmarker:
+            for face in selection.faces:
+                for index, seed in enumerate(face.seeds):
+                    region = search_region(
+                        seed.box, source.width, source.height, config.FACE_SEARCH_PADDING
+                    )
+                    crop = region.to_pixels(source.width, source.height)
+
+                    with FrameReader.for_source(
+                        self.toolchain, source, path=path, start_frame=seed.frame, max_frames=1
+                    ) as reader:
+                        frame = reader.read()
+
+                    if frame is None:
+                        problems.append(
+                            f"{face.label!r} seed {index}: frame {seed.frame} could not be read"
+                        )
                         continue
 
-                    if chosen is not None:
-                        record(frame_index, chosen)
-                        following = centroid(chosen)
+                    picture = frame[crop[1] : crop[3], crop[0] : crop[2]]
+                    found = landmarker.detect(
+                        mp.Image(
+                            image_format=mp.ImageFormat.SRGB,
+                            data=np.ascontiguousarray(picture),
+                        )
+                    ).face_landmarks
 
-                    step()
+                    candidates = [
+                        to_full_frame(
+                            points_to_array(each), crop, source.width, source.height
+                        )
+                        for each in found
+                    ]
 
-        track = FaceTrack(label=label, landmarks=landmarks, tracked=tracked, seeded_by=seeded_by)
-        track.validate_shape()
+                    if face_in_box(candidates, seed.box) is None:
+                        problems.append(
+                            f"{face.label!r} seed {index}: no face inside the box on "
+                            f"frame {seed.frame}"
+                        )
+
+        logging.info(f"Checked {sum(len(f.seeds) for f in selection.faces)} seed(s): {len(problems)} bad")
+        return problems
+
+    def track_selection(
+        self,
+        source: SourceInfo,
+        selection: Selection,
+        path: Path | None = None,
+        on_progress: "Callable[[int, int], None] | None" = None,
+    ) -> list[FaceTrack]:
+        """
+        One track per chosen face, each from its own seed.
+
+        Args:
+            source: The probed source. Its frame count is every track's length.
+            selection: The faces, which the model has already checked against
+                this source's length and for duplicate labels.
+            path: **The mezzanine.** Backward runs seek.
+            on_progress: Called with (frames done, frames total) across the
+                whole job, not per face — so a three-face run fills one bar
+                rather than three.
+
+        Returns:
+            A FaceTrack per face, in the selection's order.
+
+        Raises:
+            NoFaceInSeed: One or more boxes have no face in them. Every bad
+                box is named, not just the first.
+            ValueError: The selection was made against a different source.
+
+        Notes:
+            **A landmarker per face, never one shared.** Two people in frame
+            must not be able to become each other, and MediaPipe's video mode
+            carries state — a shared tracker would carry it between faces.
+
+            **Every seed is checked before any tracking starts.** See
+            `check_seeds`: failing after four minutes of work, on a box that
+            could have been rejected in a second, is the kind of thing that
+            makes a tool feel hostile.
+
+            **Each face costs a full decode of the source.** Three faces,
+            three passes. Sharing one decode between several landmarkers
+            would be faster and is not done, because the faces are seeded on
+            different frames and run in different directions — the
+            bookkeeping to share a pass between them is a worse thing to own
+            than the extra minutes, until something says otherwise.
+        """
+        if selection.source_frame_count != source.frame_count:
+            raise ValueError(
+                f"this selection was made against {selection.source_frame_count} frames "
+                f"and the source has {source.frame_count}. It belongs to a different cut."
+            )
+
+        problems = self.check_seeds(source, selection, path=path)
+        if problems:
+            raise NoFaceInSeed(
+                "some boxes have no face in them:\n  "
+                + "\n  ".join(problems)
+                + "\nTry drawing them again, or seeding on another frame."
+            )
+
+        total = source.frame_count * len(selection.faces)
+        done = 0
+
+        def across_the_job(_face_done: int, _face_total: int) -> None:
+            nonlocal done
+            done += 1
+            if on_progress is not None:
+                on_progress(done, total)
+
+        tracks = [
+            self.track_face(source, face, path=path, on_progress=across_the_job)
+            for face in selection.faces
+        ]
 
         logging.info(
-            f"Tracked {label!r} from the seed on frame {seed.frame}: "
-            f"{int(tracked.sum())}/{frame_count} frames, {len(track.gaps())} gap(s)"
+            f"Tracked {len(tracks)} face(s): "
+            + ", ".join(f"{t.label} {int(t.tracked.sum())}/{source.frame_count}" for t in tracks)
         )
-        return track
+        return tracks
 
     # --- THE MODEL ---
-
-    @staticmethod
-    def _region_for(
-        around: NormalisedBox, source: SourceInfo, padding: float | None
-    ) -> NormalisedBox | None:
-        """The next search region, or None when the whole frame is searched."""
-        if padding is None:
-            return None
-
-        return search_region(around, source.width, source.height, padding)
 
     def _options(self, vision, mediapipe_python, face_limit: int):
         """

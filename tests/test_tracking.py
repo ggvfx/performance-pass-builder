@@ -13,6 +13,7 @@ The clip-based tests need `tests/media/one_face_medium.mp4` and a cached
 model, and skip without either, so a fresh clone still runs its suite.
 """
 
+from datetime import datetime, timezone
 from fractions import Fraction
 from pathlib import Path
 
@@ -21,7 +22,15 @@ import pytest
 
 from src.core import config
 from src.core.ffmpeg_tools import MediaToolchain
-from src.core.models import LANDMARK_COUNT, NOT_SEEDED, FaceTrack, NormalisedBox, Seed
+from src.core.models import (
+    LANDMARK_COUNT,
+    NOT_SEEDED,
+    Face,
+    FaceTrack,
+    NormalisedBox,
+    Seed,
+    Selection,
+)
 from src.media.probe import SourceProbe
 from src.performance import model_file
 from src.performance.tracking import (
@@ -694,6 +703,290 @@ def test_a_track_does_not_transfer_to_another_face_after_its_own_leaves(
 
     print(f"started at x {started:.2f}, ended at x {ended:.2f}")
     assert ended > 0.45, "the track ended on the other officer"
+
+
+# --- A WHOLE SELECTION ---
+
+
+def a_selection(source, *faces) -> Selection:
+    return Selection(
+        created_at=datetime.now(timezone.utc),
+        source_name=source.path.name,
+        source_frame_count=source.frame_count,
+        faces=list(faces),
+    )
+
+
+def both_officers() -> list[Face]:
+    return [
+        Face(label="Bearded", seeds=[Seed(frame=0, box=LEFT_OFFICER)]),
+        Face(label="Partner", seeds=[Seed(frame=0, box=RIGHT_OFFICER)]),
+    ]
+
+
+SKY = NormalisedBox(left=0.80, top=0.02, right=0.95, bottom=0.15)
+
+
+@pytest.fixture(scope="session")
+def both_tracks(tracker, crossing_source, crossing_mezzanine) -> list[FaceTrack]:
+    """
+    Both officers tracked, once for the session.
+
+    Two faces through 240 frames of 1080p is six seconds. Several tests ask
+    different questions of the same result, and asking it once keeps the file
+    usable — a suite nobody waits for is a suite nobody runs.
+    """
+    selection = a_selection(crossing_source, *both_officers())
+    return tracker.track_selection(crossing_source, selection, path=crossing_mezzanine)
+
+
+def test_every_chosen_face_gets_its_own_full_length_track(crossing_source, both_tracks):
+    """
+    Two people, two tracks, both the length of the source. A face that was
+    lost for most of the clip is still a full-length track with gaps in it.
+    """
+    tracks = both_tracks
+
+    assert [track.label for track in tracks] == ["Bearded", "Partner"]
+    for track in tracks:
+        assert track.frame_count == crossing_source.frame_count
+        track.validate_shape()
+
+
+def test_two_tracks_are_not_the_same_face(both_tracks):
+    """
+    The point of a landmarker each. They start on opposite sides and must not
+    both end up describing whoever the detector liked best.
+    """
+    bearded, partner = both_tracks
+
+    assert float(bearded.landmarks_on(0)[:, 0].mean()) < 0.5
+    assert float(partner.landmarks_on(0)[:, 0].mean()) > 0.5
+
+
+def test_a_box_with_nothing_in_it_is_refused_before_any_tracking(
+    tracker, crossing_source, crossing_mezzanine
+):
+    """
+    The pre-flight. Tracking three faces through a long source takes
+    minutes, and finding out at the end that one box was drawn on the sky is
+    a poor way to spend them.
+    """
+    selection = a_selection(
+        crossing_source,
+        Face(label="Bearded", seeds=[Seed(frame=0, box=LEFT_OFFICER)]),
+        Face(label="Sky", seeds=[Seed(frame=0, box=SKY)]),
+    )
+
+    with pytest.raises(NoFaceInSeed, match="Sky"):
+        tracker.track_selection(crossing_source, selection, path=crossing_mezzanine)
+
+
+def test_every_bad_box_is_named_not_just_the_first(
+    tracker, crossing_source, crossing_mezzanine
+):
+    """Fixing them one run at a time would be its own kind of hostile."""
+    selection = a_selection(
+        crossing_source,
+        Face(label="Sky", seeds=[Seed(frame=0, box=SKY)]),
+        Face(
+            label="Pavement",
+            seeds=[Seed(frame=0, box=NormalisedBox(left=0.05, top=0.88, right=0.2, bottom=0.99))],
+        ),
+    )
+
+    with pytest.raises(NoFaceInSeed) as raised:
+        tracker.track_selection(crossing_source, selection, path=crossing_mezzanine)
+
+    message = str(raised.value)
+    print(message)
+    assert "Sky" in message
+    assert "Pavement" in message
+
+
+def test_checking_seeds_is_quick_enough_to_be_worth_doing(
+    tracker, crossing_source, crossing_mezzanine
+):
+    """
+    One detection per seed rather than a pass over the source. If this were
+    not far cheaper than tracking, it would not be worth having.
+    """
+    selection = a_selection(crossing_source, *both_officers())
+
+    assert tracker.check_seeds(crossing_source, selection, path=crossing_mezzanine) == []
+
+
+def test_a_selection_from_another_cut_is_refused(
+    tracker, crossing_source, crossing_mezzanine
+):
+    """
+    Seeds are frame numbers. Against a different cut they point at different
+    pictures, and every mesh would land somewhere arbitrary.
+    """
+    selection = a_selection(crossing_source, *both_officers())
+    selection.source_frame_count = crossing_source.frame_count + 50
+
+    with pytest.raises(ValueError, match="different cut"):
+        tracker.track_selection(crossing_source, selection, path=crossing_mezzanine)
+
+
+def test_progress_covers_the_whole_job_not_each_face(
+    tracker, crossing_source, crossing_mezzanine
+):
+    """Three faces should fill one bar, not three."""
+    selection = a_selection(crossing_source, *both_officers())
+    seen = []
+
+    tracker.track_selection(
+        crossing_source,
+        selection,
+        path=crossing_mezzanine,
+        on_progress=lambda done, total: seen.append((done, total)),
+    )
+
+    assert seen[-1] == (crossing_source.frame_count * 2, crossing_source.frame_count * 2)
+
+
+# --- SEVERAL SEEDS PER FACE ---
+
+# Re-seeding is the normal way to work, not a recovery path: track until the
+# face turns away, mark it again past the break. The seeds divide the source
+# into segments, and every frame records which one produced it.
+
+
+def box_round(points, pad=0.03) -> NormalisedBox:
+    """A seed box around a set of landmarks, drawn a little generously."""
+    return NormalisedBox(
+        left=max(0.0, float(points[:, 0].min()) - pad),
+        top=max(0.0, float(points[:, 1].min()) - pad),
+        right=min(1.0, float(points[:, 0].max()) + pad),
+        bottom=min(1.0, float(points[:, 1].max()) + pad),
+    )
+
+
+def test_a_later_seed_owns_the_frames_after_it(tracker, gap_source, gap_mezzanine, gap_track):
+    """
+    The point of `seeded_by`: the timeline can show which box a stretch of
+    track came from, so an artist knows where to add another.
+    """
+    face = Face(
+        label="Girl",
+        seeds=[
+            Seed(frame=160, box=box_round(gap_track.landmarks_on(160))),
+            Seed(frame=200, box=box_round(gap_track.landmarks_on(200))),
+        ],
+    )
+
+    track = tracker.track_face(gap_source, face, path=gap_mezzanine)
+
+    assert (track.seeded_by[200:][track.tracked[200:]] == 1).all()
+    assert (track.seeded_by[160:200][track.tracked[160:200]] == 0).all()
+
+
+def test_segments_report_both_the_seeds_and_the_gaps(
+    tracker, gap_source, gap_mezzanine, gap_track
+):
+    """
+    A segment ends where the face was lost *or* where the next seed takes
+    over, and both show up as separate runs.
+    """
+    face = Face(
+        label="Girl",
+        seeds=[
+            Seed(frame=160, box=box_round(gap_track.landmarks_on(160))),
+            Seed(frame=200, box=box_round(gap_track.landmarks_on(200))),
+        ],
+    )
+
+    track = tracker.track_face(gap_source, face, path=gap_mezzanine)
+    segments = [(index, r.start_frame, r.end_frame) for index, r in track.segments()]
+
+    print(segments)
+    assert any(index == 1 and start == 200 for index, start, _ in segments)
+    assert len(segments) > 2, "the gap should split the first seed's run in two"
+
+
+def test_only_the_first_seed_can_fail_the_whole_track(
+    tracker, gap_source, gap_mezzanine, gap_track
+):
+    """
+    A later seed marks a face the artist can see. If the detector disagrees
+    there, the honest result is a gap in that segment — not the loss of
+    everything tracked behind it.
+    """
+    face = Face(
+        label="Girl",
+        seeds=[
+            Seed(frame=200, box=box_round(gap_track.landmarks_on(200))),
+            Seed(frame=220, box=NormalisedBox(left=0.02, top=0.02, right=0.12, bottom=0.12)),
+        ],
+    )
+
+    track = tracker.track_face(gap_source, face, path=gap_mezzanine)
+
+    assert track.tracked[:200].any(), "the backward run behind the good seed was lost"
+    track.validate_shape()
+
+
+def test_a_bad_first_seed_still_raises(tracker, gap_source, gap_mezzanine):
+    """It is the one the whole track hangs from."""
+    face = Face(
+        label="Girl",
+        seeds=[Seed(frame=10, box=NormalisedBox(left=0.02, top=0.02, right=0.12, bottom=0.12))],
+    )
+
+    with pytest.raises(NoFaceInSeed):
+        tracker.track_face(gap_source, face, path=gap_mezzanine)
+
+
+def test_a_seed_past_the_end_names_the_face(tracker, gap_source, gap_mezzanine):
+    face = Face(
+        label="Girl",
+        seeds=[Seed(frame=gap_source.frame_count + 5, box=SEED_BOX)],
+    )
+
+    with pytest.raises(ValueError, match="Girl"):
+        tracker.track_face(gap_source, face, path=gap_mezzanine)
+
+
+def test_seeds_on_adjacent_frames_do_not_make_an_empty_segment(
+    tracker, gap_source, gap_mezzanine, gap_track
+):
+    """
+    The first seed's segment would run to the frame before the next, which
+    is itself. An empty run would be a FrameRange with its end before its
+    start, which the model refuses outright.
+    """
+    face = Face(
+        label="Girl",
+        seeds=[
+            Seed(frame=200, box=box_round(gap_track.landmarks_on(200))),
+            Seed(frame=201, box=box_round(gap_track.landmarks_on(201))),
+        ],
+    )
+
+    track = tracker.track_face(gap_source, face, path=gap_mezzanine)
+
+    track.validate_shape()
+    assert track.frame_count == gap_source.frame_count
+
+
+def test_one_seed_through_track_face_matches_track_from_seed(
+    tracker, gap_source, gap_mezzanine, gap_track
+):
+    """
+    `track_from_seed` is a wrapper now, and the one-seed case is the shape
+    the general one reduces to. If they ever disagree, one of them is wrong.
+    """
+    seed = Seed(frame=200, box=box_round(gap_track.landmarks_on(200)))
+
+    direct = tracker.track_from_seed(gap_source, seed, label="Girl", path=gap_mezzanine)
+    general = tracker.track_face(
+        gap_source, Face(label="Girl", seeds=[seed]), path=gap_mezzanine
+    )
+
+    assert int(direct.tracked.sum()) == int(general.tracked.sum())
+    assert direct.gaps() == general.gaps()
 
 
 # --- WHEN THE LENGTHS DISAGREE ---

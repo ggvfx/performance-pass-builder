@@ -232,11 +232,21 @@ a small face in a wide shot. Those are what 3.4 onward actually need.
       either face tracks that face for all 240 frames and never crosses.
       `NormalisedBox.to_pixels` and `.padded` implemented, which was the
       last pseudocode in the skeleton.*
-- [ ] **3.5** Several faces, one tracker each
-- [ ] **3.6** Several seeds per face — segments between them, backward from the
+- [x] **3.5** Several faces, one tracker each
+      *`track_selection`, with a landmarker per face so two people cannot
+      become each other. Every seed is checked before any tracking starts —
+      one detection each, under a second — so a box drawn on the sky is
+      refused before minutes are spent, and every bad box is named at once.
+      Both officers tracked separately off the night clip.*
+- [x] **3.6** Several seeds per face — segments between them, backward from the
       first, forward from each to the next. Every frame records which seed
       produced it, or that it is a gap. 3.3 becomes the one-seed case of this
       rather than a second mechanism
+      *`track_face`, and `track_from_seed` is now a wrapper over it rather
+      than a second mechanism. A segment stops at the next seed instead of
+      running to the end, so three seeds cost one decode and not three.
+      Only the first seed can fail the track: a later one that finds nothing
+      is a gap in its own segment, never the loss of everything behind it.*
 - [ ] **3.7** Smoothing, resetting across a gap and across a seed boundary
       rather than through either
 - [ ] **3.8** Rendering the mesh to **its own layer, with alpha** — not drawn
