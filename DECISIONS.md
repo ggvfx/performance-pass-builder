@@ -13,6 +13,45 @@ again.
 
 ---
 
+## Phase 3 — cleanup after 3.9
+
+- [ ] **A segment reported the wrong seed frame.** Found by reading
+      `report_for` with fresh eyes, not by a test. It set `seed_frame` to
+      the *segment's* start — but the first seed's backward run covers
+      everything before it, so a seed on frame 200 owns a segment starting
+      at 0. Every marker on the Faces timeline would have sat in the wrong
+      place for any seed not on frame 0. `report_for` now takes the faces
+      and looks the real frame up; where there are none to look up it is
+      `None` rather than a guess, which is the baseline run's honest answer.
+- [ ] **One place opens a landmarker now, not four.** The same lazy import
+      and the same six configuration lines appeared in `track_every_frame`,
+      `_forward`, `_backward` and `check_seeds`, and `check_seeds` reached
+      in afterwards to change the running mode. **The file got seven lines
+      longer**, so this is not a size win — it is a single point of truth
+      for how a landmarker is configured, which is the thing that drifts.
+- [ ] **Nothing outside `src/performance/` calls any of Phase 3.**
+      `track_selection`, `render_layer` and `landmarks_path_for` have no
+      caller: no route, no pipeline, no UI control. The Faces step in the
+      browser is still dimmed. That is expected — `pipeline.py` is Phase 4
+      — but it is now four modules and about 1,800 lines deep, which is the
+      most unwired work this project has carried at once. The 3.8 checkpoint
+      already in TODO.md is where it gets looked at.
+
+**Reviewed and left alone:**
+
+- `tracking.py` at 809 lines is over the threshold and stays. It is one
+  class doing one job in three ways, and the arithmetic it used to carry is
+  already in `face_geometry.py`. Splitting the tracker from its own
+  segments would scatter something cohesive.
+- No dead code. The only unreferenced names are pydantic validators and
+  FastAPI handlers, which frameworks call by other means, plus
+  `DepthColormap`, still an early contract for 4.10.
+- Dependency direction holds in every direction.
+- Every module that exists is in ARCHITECTURE's table; the ten that are
+  listed and missing are the ones still to be built.
+- The app serves, both routes answer, and the environment panel reads
+  `degraded` for the missing Fal key with everything else green.
+
 ## Phase 3 — 3.5 to 3.9
 
 Two of these are bugs I found and fixed; the rest are calls worth your eye.

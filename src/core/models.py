@@ -1017,10 +1017,23 @@ class FaceTrack:
 
 
 class SegmentReport(BaseModel):
-    """Which frames one seed ended up covering, for the UI and the sidecar."""
+    """
+    Which frames one seed ended up covering, for the UI and the sidecar.
+
+    Notes:
+        `seed_frame` is where the box was drawn, which is **not** where the
+        segment starts. The first seed's backward run covers frames before
+        it, so a seed on frame 200 can own a segment starting at 0 — and a
+        timeline that drew the marker at the segment's start would put it in
+        the wrong place.
+
+        None when the caller had no seeds to look up: the baseline run has
+        no real seeds, and inventing a frame number for it would be worse
+        than saying so.
+    """
 
     seed_index: int = Field(ge=0)
-    seed_frame: int = Field(ge=0)
+    seed_frame: int | None = Field(default=None, ge=0)
     covered: FrameRange
 
 

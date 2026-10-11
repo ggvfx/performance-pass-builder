@@ -37,13 +37,18 @@ needs no model and no footage, so it is testable instantly and exhaustively,
 which this is not.
 
 Notes:
-    MediaPipe is imported where it is used rather than at module scope. There
-    is no wheel for Intel macOS (ARCHITECTURE.md open question 6), and an
-    import error at startup would take the server down before the dependency
-    panel could render the message explaining exactly that.
+    MediaPipe is imported inside `_landmarker` rather than at module scope.
+    There is no wheel for Intel macOS (ARCHITECTURE.md open question 6), and
+    an import error at startup would take the server down before the
+    dependency panel could render the message explaining exactly that.
+
+    `_landmarker` is also the only place one is configured. Several runs
+    need their own object — forward and backward cannot share one, and
+    neither can two faces — but they must all be configured identically.
 """
 
 import logging
+from contextlib import contextmanager
 from fractions import Fraction
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -244,10 +249,6 @@ class FaceTracker:
             strictly rise, which is why they are derived from the exact
             rational rate rather than a rounded float.
         """
-        import mediapipe as mp
-        from mediapipe.tasks import python as mediapipe_python
-        from mediapipe.tasks.python import vision
-
         frame_count = source.frame_count
 
         # NaN throughout, so any frame the tracker never fills is a gap by
@@ -257,11 +258,10 @@ class FaceTracker:
         tracked = np.zeros(frame_count, dtype=bool)
         seeded_by = np.full(frame_count, NOT_SEEDED, dtype=np.int16)
 
-        options = self._options(vision, mediapipe_python, config.BASELINE_FACE_LIMIT)
         rate = Fraction(source.fps_numerator, source.fps_denominator)
         decoded = 0
 
-        with vision.FaceLandmarker.create_from_options(options) as landmarker:
+        with self._landmarker(config.BASELINE_FACE_LIMIT) as (mp, landmarker):
             with FrameReader.for_source(self.toolchain, source, path=path) as reader:
                 for frame_index, frame in enumerate(reader):
                     if frame_index >= frame_count:
@@ -468,17 +468,12 @@ class FaceTracker:
             may_raise: Whether a seed box with nothing in it is fatal. True
                 for the first seed only — see `track_face`.
         """
-        import mediapipe as mp
-        from mediapipe.tasks import python as mediapipe_python
-        from mediapipe.tasks.python import vision
-
-        options = self._options(vision, mediapipe_python, config.SEED_FACE_LIMIT)
         fill.aim_at(seed.box)
         fill.following = None
 
         wanted = last_frame - seed.frame + 1
 
-        with vision.FaceLandmarker.create_from_options(options) as landmarker:
+        with self._landmarker(config.SEED_FACE_LIMIT) as (mp, landmarker):
             with FrameReader.for_source(
                 self.toolchain, source, path=path, start_frame=seed.frame, max_frames=wanted
             ) as reader:
@@ -525,12 +520,6 @@ class FaceTracker:
             of guessing at frame `seed - 1`. That frame's result is thrown
             away; the forward run already owns it.
         """
-        import mediapipe as mp
-        from mediapipe.tasks import python as mediapipe_python
-        from mediapipe.tasks.python import vision
-
-        options = self._options(vision, mediapipe_python, config.SEED_FACE_LIMIT)
-
         if fill.tracked[seed.frame]:
             fill.following = centroid(fill.landmarks[seed.frame])
             fill.aim_at(bounding_box(fill.landmarks[seed.frame]))
@@ -538,7 +527,7 @@ class FaceTracker:
             fill.following = None
             fill.aim_at(seed.box)
 
-        with vision.FaceLandmarker.create_from_options(options) as landmarker:
+        with self._landmarker(config.SEED_FACE_LIMIT) as (mp, landmarker):
             backwards = frames_backwards(
                 self.toolchain, source, last_frame=seed.frame, first_frame=0, path=path
             )
@@ -581,20 +570,13 @@ class FaceTracker:
             and the caller can report every bad box at once rather than the
             first one.
         """
-        import mediapipe as mp
-        from mediapipe.tasks import python as mediapipe_python
-        from mediapipe.tasks.python import vision
-
-        options = self._options(vision, mediapipe_python, config.SEED_FACE_LIMIT)
         problems: list[str] = []
 
         # IMAGE mode, not VIDEO: these frames are scattered through the
         # source and have nothing to do with each other, so carrying tracker
         # state between them would be meaningless and the rising-timestamp
         # rule would be in the way.
-        options.running_mode = vision.RunningMode.IMAGE
-
-        with vision.FaceLandmarker.create_from_options(options) as landmarker:
+        with self._landmarker(config.SEED_FACE_LIMIT, video=False) as (mp, landmarker):
             for face in selection.faces:
                 for index, seed in enumerate(face.seeds):
                     region = search_region(
@@ -717,23 +699,52 @@ class FaceTracker:
 
     # --- THE MODEL ---
 
-    def _options(self, vision, mediapipe_python, face_limit: int):
+    @contextmanager
+    def _landmarker(self, face_limit: int, video: bool = True):
         """
-        Landmarker options, so the two runs cannot drift apart.
+        An open landmarker, and the MediaPipe module to build images with.
+
+        Args:
+            face_limit: How many faces to detect per frame. The seed box or
+                the search region picks one of them; this is how many
+                candidates there are to pick between.
+            video: VIDEO mode, which carries state between frames and
+                demands timestamps that rise. False gives IMAGE mode, for
+                frames scattered through a source that have nothing to do
+                with each other — `check_seeds` is the one caller.
+
+        Yields:
+            (the mediapipe module, the landmarker).
 
         Notes:
-            Built per run rather than shared: a forward and a backward
-            landmarker must be separate objects, but they must be configured
-            identically, and two literal blocks is how that stops being true.
+            **The one place a landmarker is configured.** Several runs need
+            their own object — a forward and a backward run cannot share
+            one, and neither can two faces — but they must all be
+            configured identically, and four literal blocks is exactly how
+            that stops being true.
+
+            MediaPipe is imported here rather than at module scope. There is
+            no wheel for Intel macOS, and an import error at startup would
+            take the server down before the dependency panel could render
+            the message explaining that.
         """
-        return vision.FaceLandmarkerOptions(
+        import mediapipe as mp
+        from mediapipe.tasks import python as mediapipe_python
+        from mediapipe.tasks.python import vision
+
+        options = vision.FaceLandmarkerOptions(
             base_options=mediapipe_python.BaseOptions(model_asset_path=str(self._model())),
-            running_mode=vision.RunningMode.VIDEO,
+            running_mode=(
+                vision.RunningMode.VIDEO if video else vision.RunningMode.IMAGE
+            ),
             num_faces=face_limit,
             min_face_detection_confidence=config.FACE_DETECTION_CONFIDENCE,
             min_face_presence_confidence=config.FACE_PRESENCE_CONFIDENCE,
             min_tracking_confidence=config.FACE_TRACKING_CONFIDENCE,
         )
+
+        with vision.FaceLandmarker.create_from_options(options) as landmarker:
+            yield mp, landmarker
 
     def _model(self) -> Path:
         """
@@ -771,15 +782,42 @@ def timestamp_ms(frame_index: int, rate: Fraction) -> int:
 # --- REPORTING ---
 
 
-def report_for(tracks: list[FaceTrack], frame_count: int) -> TrackingReport:
+def report_for(
+    tracks: list[FaceTrack], frame_count: int, faces: list[Face] | None = None
+) -> TrackingReport:
     """
     What happened to every face, for the UI and the sidecar.
+
+    Args:
+        tracks: The finished tracks.
+        frame_count: The source's length, so every per-face number has a
+            denominator wherever the report is read.
+        faces: The chosen faces, matched by label, so each segment can say
+            which frame its seed was actually drawn on. Without them the
+            seed frames are reported as None rather than guessed.
 
     Notes:
         Built from the tracks themselves, so the numbers shown and the
         numbers recorded cannot disagree — there is no second count kept
         alongside the arrays.
+
+        **A seed's frame is not its segment's start.** The first seed's
+        backward run covers everything before it, so a seed on frame 200
+        owns a segment starting at 0. This used to report the segment start
+        as the seed frame, which would have put every marker on a timeline
+        in the wrong place for any seed that was not on frame 0.
     """
+    seeds_by_label = {
+        face.label: [seed.frame for seed in face.seeds] for face in (faces or [])
+    }
+
+    def seed_frame(label: str, seed_index: int) -> int | None:
+        """Where this seed's box was drawn, if the caller said."""
+        frames = seeds_by_label.get(label)
+        if frames is None or seed_index >= len(frames):
+            return None
+        return frames[seed_index]
+
     return TrackingReport(
         frame_count=frame_count,
         faces=[
@@ -791,7 +829,7 @@ def report_for(tracks: list[FaceTrack], frame_count: int) -> TrackingReport:
                 segments=[
                     SegmentReport(
                         seed_index=seed_index,
-                        seed_frame=covered.start_frame,
+                        seed_frame=seed_frame(track.label, seed_index),
                         covered=covered,
                     )
                     for seed_index, covered in track.segments()

@@ -989,6 +989,42 @@ def test_one_seed_through_track_face_matches_track_from_seed(
     assert direct.gaps() == general.gaps()
 
 
+def test_a_segments_seed_frame_is_where_the_box_was_not_where_the_run_starts():
+    """
+    The bug this guards. The first seed's backward run covers everything
+    before it, so a seed on frame 200 owns a segment starting at 0. Reported
+    as the segment's start, every marker on a timeline would sit in the
+    wrong place for any seed not on frame 0.
+    """
+    track = FaceTrack(
+        label="Woman",
+        landmarks=np.zeros((10, LANDMARK_COUNT, 3), dtype=np.float32),
+        tracked=np.ones(10, dtype=bool),
+        seeded_by=np.zeros(10, dtype=np.int16),
+    )
+    face = Face(label="Woman", seeds=[Seed(frame=7, box=SEED_BOX)])
+
+    segment = report_for([track], 10, faces=[face]).faces[0].segments[0]
+
+    assert segment.covered.start_frame == 0, "the backward run covers from the start"
+    assert segment.seed_frame == 7, "but the box was drawn on frame 7"
+
+
+def test_an_unknown_seed_frame_is_none_rather_than_a_guess():
+    """
+    The baseline run has no real seeds. Inventing a frame number for it
+    would be worse than saying there is not one.
+    """
+    track = FaceTrack(
+        label="Face",
+        landmarks=np.zeros((5, LANDMARK_COUNT, 3), dtype=np.float32),
+        tracked=np.ones(5, dtype=bool),
+        seeded_by=np.zeros(5, dtype=np.int16),
+    )
+
+    assert report_for([track], 5).faces[0].segments[0].seed_frame is None
+
+
 # --- SMOOTHING A REAL TRACK ---
 
 

@@ -36,7 +36,7 @@ each with its own tracker; several seeds per face, dividing the shot into
 segments so a face that turns away can be picked up again; One Euro
 smoothing that resets at every gap and seed rather than filtering through
 them; the mesh rendered to **its own transparent layer** rather than drawn
-onto anything; and `landmarks.json` with the numbers behind it. 482 tests.
+onto anything; and `landmarks.json` with the numbers behind it. 484 tests.
 
 The foundation was proven against clips ffmpeg generates; the tracking is
 proven against real footage, kept out of the repository. Whether the whole
