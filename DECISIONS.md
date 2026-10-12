@@ -16,13 +16,77 @@ time was eleven more rounds to learn things like how the mesh alpha is
 unpremultiplied — which is in the code, the docstrings and the commits
 already. They are marked as records.
 
-**Nothing is open as of 2026-10-11.** Everything below is history:
+**Open as of 2026-10-12: the 3.12 and 3.13 entries, eleven lines, plus
+everything under Considerations.** Everything below those is history:
 accurate, worth searching, not worth reading front to back. New decisions
-go at the top as they are taken, and the next batch will come from building
-3.12 onward.
+go at the top as they are taken.
 
 Delete this file when it stops earning its place. The point was to stop
 decisions getting lost while I worked unattended, not to become a backlog.
+
+---
+
+## Considerations
+
+Findings from the first look in a real browser, 2026-10-12, on the night
+clip and others. **Not decisions yet**: each is a thing to fix or decide,
+with what is known about the cause. Tick when addressed, and move anything
+that turns into a task into TODO.md.
+
+- [ ] **The mesh lags behind the face.** It is in the track, not the
+      playback: the preview is one composited video, so the mesh and the
+      picture are baked into the same frames and cannot drift apart in the
+      browser. The cause is the smoothing. `smooth()` runs One Euro forwards
+      only, so each frame is a blend of the new detection and the previous
+      smoothed position, and the mesh trails. From the filter's arithmetic
+      at 24 fps, with `SMOOTHING_MIN_CUTOFF = 1.0` and `SMOOTHING_BETA =
+      30.0`, that is about 4 frames on slow movement and about 2 on a brisk
+      head turn. **Estimated, not measured.**
+
+      One Euro is built for live input, where only the past exists. This app
+      has the whole track before it draws anything, so the lag is not
+      needed. **Recommended fix:** filter each segment forwards and
+      backwards and combine the two, so the lag and the lead cancel, still
+      resetting at gaps and seeds. Confirm the cause first by rendering the
+      same preview unsmoothed. This revisits 3.7.
+- [ ] **Multiple faces cannot be tracked from the page.** Expected from the
+      code, not a regression: **Track** still runs the 3.11 baseline,
+      `track_every_frame`, which tracks one face over the whole frame and
+      ignores the boxes drawn at 3.13. Multi-face tracking is built
+      (`track_selection`, 3.5) but nothing on the page calls it. That is
+      3.14 (`selection.json`) and 3.15 (track the selection).
+- [ ] **The mesh jumped to another face.** Same root cause: the baseline
+      takes MediaPipe's first face on every frame, with no search region and
+      no continuity check, so the 3.10 fix does not apply to it. Seeded
+      tracking from 3.15 should stop most of this. **Re-check on the same
+      clip once 3.15 is in.**
+- [ ] **A way to delete the mesh from wrong frames.** Wanted even after the
+      above, because a seeded track can still be wrong somewhere. A face
+      should be able to have a frame range marked as "not this face", which
+      becomes a gap. Questions to settle: stored per face in
+      `selection.json` so a re-track reapplies it rather than losing it;
+      smoothing must reset at it the way it does at any gap; and the
+      timeline (3.16) is the natural place to draw and remove it. New task.
+- [ ] **One player, not two.** The face should be selected and the rendered
+      mesh seen on the same video. Today the Faces step has the proxy player
+      for drawing boxes and a second video for the tracked preview. Options:
+      build the preview from the proxy, so it keeps the burned-in frame
+      numbers, and swap it into the same player with the mesh switchable;
+      or draw the mesh layer over the proxy in the page. Whichever, the
+      frame readout and the boxes have to stay exact. Affects 3.12, 3.13,
+      3.16 and 3.17.
+- [ ] **Re-seeding a face is untried.** "Mark again here" adds a second
+      seed in the UI, but a second segment has never been tracked from the
+      page, because Track does not use seeds yet. Needs 3.15, then trying on
+      `walks_in_and_turns_away.mp4`, which is the clip with a real gap.
+- [ ] **The playback controls should match minicut's splitter.** That has a
+      timeline above the picture and a transport row: previous shot, back a
+      frame, play, forward a frame, next shot, with Shift for ten frames and
+      `[` / `]` to jump (`minicut-shot-detector` `index.html` lines 116–128,
+      `player.js`). Here the shot jumps become previous and next seed, and
+      the timeline is the one 3.16 already plans, showing each face's
+      coverage, seeds, gaps and deleted ranges. The 3.12 port dropped
+      minicut's markers and `goToCut`; they come back in this form.
 
 ---
 
